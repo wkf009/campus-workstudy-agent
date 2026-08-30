@@ -1,0 +1,134 @@
+@startuml 数据库ER图-勤工俭学管理系统
+skinparam rectangleBorderColor #1890ff
+skinparam linetype ortho
+
+title 数据库 ER 图：勤工俭学管理系统
+
+entity "department (部门信息表)" as Dept {
+  * id : BIGINT <<PK>>
+  --
+  * name : VARCHAR(100) <<部门名称>>
+  description : VARCHAR(255) <<描述>>
+  create_time : DATETIME <<创建时间>>
+}
+
+entity "sys_user (系统用户表)" as User {
+  * id : BIGINT <<PK>>
+  --
+  * username : VARCHAR(50) <<UQ, 用户名>>
+  * password : VARCHAR(255) <<BCrypt加密>>
+  real_name : VARCHAR(50) <<真实姓名>>
+  * role : INT <<0学生,1导师,2部门管理员,3超级管理员>>
+  phone : VARCHAR(20) <<电话>>
+  email : VARCHAR(100) <<邮箱>>
+  avatar : VARCHAR(255) <<头像URL>>
+  gender : TINYINT <<0未知,1男,2女>>
+  student_no : VARCHAR(50) <<学号>>
+  major : VARCHAR(100) <<专业>>
+  department_id : BIGINT <<FK→department.id>>
+  status : TINYINT <<0禁用,1正常>>
+  create_time : DATETIME
+  update_time : DATETIME
+}
+
+entity "job (岗位信息表)" as Job {
+  * id : BIGINT <<PK>>
+  --
+  * title : VARCHAR(100) <<岗位标题>>
+  description : TEXT <<详细描述>>
+  requirements : TEXT <<任职要求>>
+  salary : DECIMAL(10,2) <<薪资>>
+  location : VARCHAR(100) <<工作地点>>
+  quota : INT <<招聘名额>>
+  work_time : VARCHAR(100) <<工作时间>>
+  contact_person : VARCHAR(50) <<联系人>>
+  contact_phone : VARCHAR(20) <<联系电话>>
+  department_id : BIGINT <<FK→department.id>>
+  department_name : VARCHAR(100) <<冗余字段>>
+  publisher_id : BIGINT <<FK→sys_user.id>>
+  status : TINYINT <<0待审批,1招聘中,2已结束,3拒绝>>
+  remark : VARCHAR(255) <<审批备注>>
+  create_time : DATETIME
+  update_time : DATETIME
+}
+
+entity "job_application (岗位申请表)" as App {
+  * id : BIGINT <<PK>>
+  --
+  * job_id : BIGINT <<FK→job.id>>
+  * user_id : BIGINT <<FK→sys_user.id>>
+  resume_url : VARCHAR(255) <<简历URL>>
+  cover_letter : TEXT <<自荐信>>
+  status : TINYINT <<0待审,1通过,2拒绝,3取消>>
+  audit_remark : VARCHAR(255) <<审核备注>>
+  apply_time : DATETIME <<申请时间>>
+  audit_time : DATETIME <<审核时间>>
+  auditor_id : BIGINT <<FK→sys_user.id>>
+  interview_time : DATETIME <<面试时间>>
+}
+
+entity "notification (消息通知表)" as Notify {
+  * id : BIGINT <<PK>>
+  --
+  * user_id : BIGINT <<FK→sys_user.id>>
+  * title : VARCHAR(200) <<通知标题>>
+  content : TEXT <<通知内容>>
+  type : TINYINT <<0系统,1岗位,2申请>>
+  related_id : BIGINT <<关联ID>>
+  is_read : TINYINT <<0未读,1已读>>
+  create_time : DATETIME
+}
+
+entity "operation_log (操作日志表)" as Log {
+  * id : BIGINT <<PK>>
+  --
+  user_id : BIGINT <<FK→sys_user.id>>
+  username : VARCHAR(50) <<操作人用户名>>
+  operation : VARCHAR(100) <<操作描述>>
+  method : VARCHAR(200) <<方法名>>
+  params : TEXT <<请求参数>>
+  ip : VARCHAR(50) <<IP地址>>
+  create_time : DATETIME
+}
+
+User }o--|| Dept : department_id
+Job }o--|| Dept : department_id
+Job }o--|| User : publisher_id
+App }o--|| Job : job_id
+App }o--|| User : user_id
+App }o--|| User : auditor_id
+Notify }o--|| User : user_id
+Log }o--|| User : user_id
+
+note top of User
+  索引：
+  • UNIQUE KEY uk_username (username)
+  • KEY idx_status (status)
+end note
+
+note top of Job
+  索引：
+  • KEY idx_department_id (department_id)
+  • KEY idx_status (status)
+end note
+
+note top of App
+  索引：
+  • KEY idx_job_id (job_id)
+  • KEY idx_user_id (user_id)
+  • 业务唯一约束：(job_id, user_id)
+end note
+
+note top of Notify
+  索引：
+  • KEY idx_user_id (user_id)
+  • KEY idx_is_read (is_read)
+end note
+
+note top of Log
+  索引：
+  • KEY idx_user_id (user_id)
+  • KEY idx_create_time (create_time)
+end note
+
+@enduml

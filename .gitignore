@@ -1,0 +1,36 @@
+# ===== IDE =====
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# ===== 本地个人工具配置 =====
+.claude/
+
+# ===== 构建产物 =====
+target/
+dist/
+*.class
+*.jar
+*.war
+
+# ===== 前端依赖 =====
+node_modules/
+
+# ===== Vite 构建临时文件 =====
+*.timestamp-*.mjs
+
+# ===== 运行时数据（含用户上传的简历等敏感文件） =====
+uploads/
+*.log
+
+# ===== 本地环境变量/密钥（含 API Key） =====
+.env
+.env.local
+application-local.yml
+
+# ===== 系统文件 =====
+Thumbs.db
+.DS_Store

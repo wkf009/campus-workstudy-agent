@@ -1,0 +1,143 @@
+# 接口定义（API 签名）：勤工俭学管理系统
+
+## 一、认证接口 AuthController
+
+### 1. 登录
+```
+POST /api/auth/login
+```
+| 项目 | 说明 |
+|------|------|
+| **方法签名** | `public Result<LoginVO> login(@RequestBody LoginDTO dto)` |
+| **请求参数** | `{ username: String, password: String }` |
+| **返回类型** | `Result<LoginVO>` — `{ code:200, data: { token, user: { id, username, realName, role, email, phone } } }` |
+| **异常** | `401` — 用户名或密码错误；`403` — 账户已被禁用 |
+| **前置条件** | 用户名和密码非空 |
+| **后置条件** | 返回 JWT Token，有效期 24h |
+
+### 2. 注册
+```
+POST /api/auth/register
+```
+| 项目 | 说明 |
+|------|------|
+| **方法签名** | `public Result<Void> register(@RequestBody RegisterDTO dto)` |
+| **请求参数** | `{ username, password, realName, role(0/1/2), phone, email, studentNo?, major?, departmentId? }` |
+| **返回类型** | `Result<Void>` — `{ code:200, message:"注册成功，等待管理员审批" }` |
+| **异常** | `400` — 用户名已存在；`400` — 必填字段缺失 |
+| **前置条件** | 用户名唯一，角色选择 0/1/2 |
+| **后置条件** | 用户创建，状态=0（待审批），密码 BCrypt 加密 |
+
+---
+
+## 二、岗位接口 JobController
+
+### 3. 岗位列表查询
+```
+GET /api/jobs?page=1&size=10&keyword=&departmentId=&status=
+```
+| 项目 | 说明 |
+|------|------|
+| **方法签名** | `public Result<PageResult<JobVO>> listJobs(JobSearchDTO dto)` |
+| **请求参数** | `page: int, size: int, keyword: String?, departmentId: Long?, status: Integer?` |
+| **返回类型** | `Result<PageResult<JobVO>>` — `{ code:200, data: { total, list[{id, title, salary, location, quota, departmentName, status, createTime}], pageNum, pageSize } }` |
+| **异常** | 无（空结果返回 `total=0`） |
+| **权限** | 公开，无需登录 |
+
+### 4. 发布岗位
+```
+POST /api/jobs
+```
+| 项目 | 说明 |
+|------|------|
+| **方法签名** | `public Result<Void> publishJob(@RequestBody JobDTO dto)` |
+| **请求参数** | `{ title, description, requirements, salary, location, quota, workTime, contactPerson, contactPhone }` |
+| **返回类型** | `Result<Void>` |
+| **异常** | `403` — 学生角色无权发布；`400` — 必填字段缺失 |
+| **前置条件** | 当前用户角色为部门管理员或以上 |
+| **后置条件** | 岗位创建，状态=0（待审批） |
+
+### 5. 审批岗位
+```
+PUT /api/jobs/{id}/audit
+```
+| 项目 | 说明 |
+|------|------|
+| **方法签名** | `public Result<Void> auditJob(@PathVariable Long id, @RequestBody AuditDTO dto)` |
+| **请求参数** | `{ status: 1(通过)/3(拒绝), remark: String }` |
+| **返回类型** | `Result<Void>` |
+| **异常** | `403` — 非超级管理员无权审批；`404` — 岗位不存在；`400` — 拒绝时备注不能为空 |
+| **前置条件** | 当前用户为超级管理员，岗位状态=0（待审批） |
+| **后置条件** | 岗位状态更新，通过则学生可见 |
+
+---
+
+## 三、申请接口 ApplicationController
+
+### 6. 投递申请
+```
+POST /api/applications
+```
+| 项目 | 说明 |
+|------|------|
+| **方法签名** | `public Result<Void> applyForJob(@RequestBody ApplyDTO dto)` |
+| **请求参数** | `{ jobId: Long, resumeUrl: String, coverLetter: String }` |
+| **返回类型** | `Result<Void>` |
+| **异常** | `400` — 该岗位已投递过；`400` — 岗位不在招聘中；`400` — 配额已满 |
+| **前置条件** | 当前用户为学生，岗位状态=1（招聘中） |
+| **后置条件** | 申请创建，状态=0（待审核） |
+
+### 7. 审核申请
+```
+PUT /api/applications/{id}/audit
+```
+| 项目 | 说明 |
+|------|------|
+| **方法签名** | `public Result<Void> auditApplication(@PathVariable Long id, @RequestBody AuditDTO dto)` |
+| **请求参数** | `{ status: 1(通过)/2(拒绝), auditRemark: String, interviewTime: DateTime? }` |
+| **返回类型** | `Result<Void>` |
+| **异常** | `403` — 无权审核（跨部门）；`404` — 申请不存在；`400` — 拒绝时备注不少于10字 |
+| **前置条件** | 当前用户为部门管理员/超级管理员，且申请关联岗位属于本部门 |
+| **后置条件** | 申请状态更新，自动生成通知推送给学生 |
+
+---
+
+## 四、通知接口 NotificationController
+
+### 8. 获取通知列表
+```
+GET /api/notifications
+```
+| 项目 | 说明 |
+|------|------|
+| **方法签名** | `public Result<List<NotificationVO>> listNotifications()` |
+| **返回类型** | `Result<List<NotificationVO>>` |
+| **权限** | 登录用户，仅返回本人的通知 |
+
+### 9. 标记已读
+```
+PUT /api/notifications/{id}/read
+```
+| 项目 | 说明 |
+|------|------|
+| **方法签名** | `public Result<Void> markAsRead(@PathVariable Long id)` |
+| **后置条件** | 通知 is_read = 1 |
+
+---
+
+## 五、通用返回格式
+
+```java
+public class Result<T> {
+    private int code;      // 200=成功, 400=参数错误, 401=未授权, 403=禁止, 500=服务器错误
+    private String message; // 提示信息
+    private T data;         // 泛型数据体
+}
+
+public class PageResult<T> {
+    private long total;     // 总记录数
+    private List<T> list;   // 当前页数据
+    private int pageNum;    // 当前页码
+    private int pageSize;   // 每页大小
+}
+```

@@ -1,0 +1,78 @@
+@startuml 详细时序图-部门审核申请
+skinparam sequenceParticipantBorderColor #1890ff
+skinparam sequenceParticipantBackgroundColor #e6f7ff
+skinparam sequenceArrowThickness 2
+skinparam linetype ortho
+
+title 详细时序图：部门审核申请（含对象创建/销毁、分支）
+
+actor "部门管理员" as DeptAdmin
+participant "Department\nApplications.vue" as Vue
+participant "Application\nController" as Ctrl
+participant "Application\nService" as Svc
+participant "Application\nMapper" as AppMapper
+participant "Notification\nService" as NotifySvc
+participant "Notification\nMapper" as NotifyMapper
+database "MySQL" as DB
+
+DeptAdmin -> Vue: 进入申请审核页
+
+Vue -> Ctrl: GET /api/applications?deptId=X&page=1
+Ctrl -> Svc: listByDept(deptId, page, size)
+Svc -> AppMapper: selectPage(deptId)
+AppMapper -> DB: SELECT a.*, u.real_name, u.phone, u.major,\n  j.title as job_title\nFROM job_application a\n  JOIN sys_user u ON a.user_id = u.id\n  JOIN job j ON a.job_id = j.id\nWHERE j.department_id = ?\nORDER BY a.apply_time DESC
+DB --> AppMapper: 结果集
+AppMapper --> Svc: Page<ApplicationVO>
+Svc --> Ctrl: PageResult
+Ctrl --> Vue: 分页数据
+Vue --> DeptAdmin: 展示申请表格
+
+DeptAdmin -> Vue: 点击某条申请的"审核"
+
+alt 审核通过
+  DeptAdmin -> Vue: 选择"通过" + 设置面试时间\n填写审核备注(选填)
+  Vue -> Ctrl: PUT /api/applications/{id}\n{status:1, interviewTime, auditRemark}
+  Ctrl -> Svc: auditApplication(id, dto)
+  Svc -> AppMapper: updateById(app)
+  AppMapper -> DB: UPDATE job_application\nSET status=1, audit_remark=?,\n  interview_time=?, audit_time=NOW()\nWHERE id=?
+  DB --> AppMapper: OK
+
+  ' 创建通知对象
+  Svc -> NotifySvc: createNotification(app.userId,\n"申请已通过",\n"您投递的岗位申请已通过审核",\ntype=2)
+  create Notification <<新对象>>
+  NotifySvc -> NotifyMapper: insert(notification)
+  NotifyMapper -> DB: INSERT INTO notification\n(user_id, title, content, type, related_id)\nVALUES (...)
+  DB --> NotifyMapper: OK
+  destroy Notification
+  NotifyMapper --> NotifySvc: success
+  NotifySvc --> Svc: 通知已生成
+  Svc --> Ctrl: success
+  Ctrl --> Vue: {code:200}
+  Vue --> DeptAdmin: "审核通过，已通知学生"
+
+else 审核拒绝
+  DeptAdmin -> Vue: 选择"拒绝" + 填写拒绝原因(必填)
+  Vue -> Ctrl: PUT /api/applications/{id}\n{status:2, auditRemark}
+  Ctrl -> Svc: auditApplication(id, dto)
+  Svc -> AppMapper: updateById(app)
+  AppMapper -> DB: UPDATE job_application\nSET status=2, audit_remark=?,\n  audit_time=NOW()\nWHERE id=?
+  DB --> AppMapper: OK
+
+  Svc -> NotifySvc: createNotification(app.userId,\n"申请未通过",\n"原因: " + auditRemark,\ntype=2)
+  create Notification <<新对象>>
+  NotifySvc -> NotifyMapper: insert(notification)
+  NotifyMapper -> DB: INSERT INTO notification (...)
+  DB --> NotifyMapper: OK
+  destroy Notification
+  NotifyMapper --> NotifySvc: success
+  NotifySvc --> Svc: 通知已生成
+  Svc --> Ctrl: success
+  Ctrl --> Vue: {code:200}
+  Vue --> DeptAdmin: "已拒绝该申请，已通知学生"
+
+else 审核备注不足10字
+  Vue -> Vue: 前端校验拒绝原因\n< 10字，拒绝提交
+  Vue --> DeptAdmin: "拒绝原因不少于10字"
+end
+
+@enduml

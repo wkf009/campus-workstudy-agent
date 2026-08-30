@@ -1,0 +1,139 @@
+@startuml 实现组件图-勤工俭学管理系统
+skinparam componentBorderColor #333
+skinparam componentBackgroundColor #fafafa
+skinparam packageBorderColor #1890ff
+skinparam linetype ortho
+
+title 实现组件图：源码级模块组织
+
+package "frontend/ (Vue 3 + Vite)" {
+
+  package "src/views/" as views {
+    [Home.vue\n首页/登录/注册] as HomePage
+    [Student.vue\n学生框架] as StudentFrame
+    [Department.vue\n部门框架] as DeptFrame
+    [Admin.vue\n管理框架] as AdminFrame
+  }
+
+  package "src/components/" as comps {
+    [StudentDashboard] as StuDash
+    [StudentJobs] as StuJobs
+    [StudentApplications] as StuApps
+    [DepartmentDashboard] as DeptDash
+    [DepartmentJobs] as DeptJobs
+    [DepartmentApplications] as DeptApps
+    [SubmitJob] as SubmitJob
+    [AdminDashboard] as AdminDash
+    [AdminJobs] as AdminJobs
+    [AdminUsers] as AdminUsers
+  }
+
+  package "src/router/" as router {
+    [index.js\n路由配置+守卫] as Router
+  }
+
+  package "src/utils/" as utils {
+    [request.js\nAxios封装+拦截器] as Request
+  }
+}
+
+package "backend/ (Spring Boot 3.2)" {
+
+  package "controller/" as ctrl {
+    [AuthController] as AuthCtrl
+    [UserController] as UserCtrl
+    [JobController] as JobCtrl
+    [ApplicationController] as AppCtrl
+    [DepartmentController] as DeptCtrl
+    [NotificationController] as NotifyCtrl
+    [ExportController] as ExportCtrl
+    [StatsController] as StatsCtrl
+    [FileController] as FileCtrl
+    [OperationLogController] as LogCtrl
+  }
+
+  package "service/" as svc {
+    [UserService] as UserSvc
+    [JobService] as JobSvc
+    [ApplicationService] as AppSvc
+    [DepartmentService] as DeptSvc
+    [NotificationService] as NotifySvc
+  }
+
+  package "mapper/" as mapper {
+    [UserMapper] as UserMap
+    [JobMapper] as JobMap
+    [ApplicationMapper] as AppMap
+    [DepartmentMapper] as DeptMap
+    [NotificationMapper] as NotifyMap
+    [OperationLogMapper] as LogMap
+  }
+
+  package "entity/" as entity {
+    [User.java]
+    [Job.java]
+    [Application.java]
+    [Department.java]
+    [Notification.java]
+    [OperationLog.java]
+  }
+
+  package "config/" as config {
+    [SecurityConfig]
+    [JwtFilter]
+    [GlobalExceptionHandler]
+  }
+
+  package "aspect/" as aspect {
+    [OperationLogAspect]
+    [LogOperation\n(注解)]
+  }
+
+  package "utils/" as beutils {
+    [JwtUtils]
+  }
+}
+
+package "database/" as db {
+  [init.sql\nDDL+测试数据]
+}
+
+package "deployment/" as deploy {
+  [Dockerfile]
+  [docker-compose.yml]
+  [nginx.conf]
+}
+
+' 依赖
+HomePage --> Request
+StudentFrame --> Router
+DeptFrame --> Router
+AdminFrame --> Router
+
+Request --> AuthCtrl : HTTP /api/*
+Request --> JobCtrl
+Request --> AppCtrl
+Request --> NotifyCtrl
+
+AuthCtrl --> UserSvc
+JobCtrl --> JobSvc
+AppCtrl --> AppSvc
+
+UserSvc --> UserMap
+JobSvc --> JobMap
+AppSvc --> AppMap
+
+UserMap --> [init.sql] : 建表/查询
+JobMap --> [init.sql]
+
+AuthCtrl --> JwtFilter : 认证拦截
+
+note bottom of Router
+  Vue Router 路由守卫：
+  • / → 公开（登录/注册）
+  • /student/** → 需登录+学生角色
+  • /department/** → 需登录+管理员角色
+  • /admin/** → 需登录+超级管理员角色
+end note
+
+@enduml

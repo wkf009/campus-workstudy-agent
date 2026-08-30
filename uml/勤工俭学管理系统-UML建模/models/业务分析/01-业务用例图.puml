@@ -1,0 +1,60 @@
+@startuml 业务用例图-勤工俭学管理系统
+left to right direction
+skinparam linetype ortho
+skinparam actorBorderColor #1890ff
+skinparam actorBackgroundColor #e6f7ff
+skinparam usecaseBorderColor #333
+skinparam usecaseBackgroundColor #fafafa
+
+title 业务用例图：勤工俭学管理系统
+
+actor "学生" as Student
+
+rectangle "勤工俭学管理系统" {
+  usecase (浏览岗位) as UC1
+  usecase (投递申请\n+上传简历) as UC2
+  usecase (查看申请进度) as UC3
+  usecase (接收通知) as UC4
+  usecase (注册账户) as UC5
+
+  usecase (发布管理岗位) as UC7
+  usecase (审核申请\n+安排面试) as UC9
+  usecase (部门统计) as UC11
+
+  usecase (用户与部门管理) as UC12
+  usecase (审批岗位与注册) as UC14
+  usecase (全局统计与导出) as UC16
+  usecase (操作日志) as UC18
+}
+
+actor "企业导师\n/部门管理员" as DeptAdmin
+actor "超级管理员" as SuperAdmin
+
+' === 左侧连线 ===
+Student -right-> UC1
+Student -right-> UC2
+Student -right-> UC3
+Student -right-> UC4
+Student -right-> UC5
+
+' === 右侧连线 ===
+UC7 -left-> DeptAdmin
+UC9 -left-> DeptAdmin
+UC11 -left-> DeptAdmin
+
+UC12 -left-> SuperAdmin
+UC14 -left-> SuperAdmin
+UC16 -left-> SuperAdmin
+UC18 -left-> SuperAdmin
+
+' === 横向关联 ===
+UC1 -right-> UC2 : «extend»
+UC2 -right-> UC9 : «include»\n等待审核
+UC3 -left-> UC9 : «include»\n结果反馈
+UC5 -right-> UC14 : «include»\n注册审批
+UC7 -right-> UC14 : «include»\n岗位审批
+UC9 -right-> UC4 : «extend»\n通知学生
+UC11 -right-> UC16 : «include»\n汇总
+UC18 -left-> UC16 : «include»
+
+@enduml

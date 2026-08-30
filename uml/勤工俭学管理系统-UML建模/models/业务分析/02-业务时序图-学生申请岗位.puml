@@ -1,0 +1,42 @@
+@startuml 业务时序图-学生申请岗位
+skinparam sequenceParticipantBorderColor #1890ff
+skinparam sequenceParticipantBackgroundColor #e6f7ff
+skinparam sequenceArrowThickness 2
+skinparam noteBorderColor #faad14
+skinparam noteBackgroundColor #fffbe6
+
+title 业务时序图：学生浏览并投递岗位申请
+
+actor "学生" as Student
+participant "岗位公告栏" as Board
+participant "岗位发布部门" as Dept
+participant "勤工俭学系统" as System
+
+== 浏览岗位 ==
+Student -> Board: 查看岗位公告\n(按部门/地点筛选)
+Board -> System: 查询可投递岗位
+System --> Board: 返回岗位列表(状态=招聘中)
+Board --> Student: 展示岗位信息\n(标题、薪资、名额、要求)
+
+== 投递申请 ==
+Student -> System: 选择岗位并投递申请\n(上传简历、填写自荐信)
+System -> System: 校验岗位配额是否已满
+alt 配额充足
+    System -> System: 创建申请记录\n(状态=待审核)
+    System --> Student: 提示"投递成功，等待审核"
+else 配额已满
+    System --> Student: 提示"该岗位已招满"
+end
+
+== 等待审核 ==
+Student -> System: 查看我的申请列表
+System --> Student: 返回申请记录及当前状态
+
+note over Student, System
+  业务规则：
+  1. 学生可同时向多个岗位投递
+  2. 同一岗位不可重复投递
+  3. 配额满后自动截止投递
+end note
+
+@enduml

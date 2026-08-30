@@ -1,0 +1,66 @@
+@startuml 系统用例图-勤工俭学管理系统
+left to right direction
+skinparam linetype ortho
+skinparam actorBorderColor #1890ff
+skinparam actorBackgroundColor #e6f7ff
+skinparam usecaseBorderColor #333
+skinparam usecaseBackgroundColor #fafafa
+
+title 系统用例图：明确系统边界与自动化范围
+
+actor "学生" as Student
+actor "部门管理员" as DeptAdmin
+actor "超级管理员" as SuperAdmin
+
+rectangle "勤工俭学系统（自动化边界）" {
+
+  ' 学生用例
+  usecase "注册账户\n(自动)" as S1
+  usecase "登录/登出\n(自动)" as S2
+  usecase "浏览岗位列表\n(自动)" as S3
+  usecase "投递申请+上传简历\n(自动)" as S4
+  usecase "查看申请进度\n(自动)" as S5
+  usecase "查看通知\n(自动)" as S6
+
+  ' 部门管理员用例
+  usecase "发布管理岗位\n(自动)" as D1
+  usecase "审核申请+安排面试\n(自动)" as D2
+  usecase "查看部门统计\n(自动)" as D3
+
+  ' 超级管理员用例
+  usecase "管理用户与部门\n(自动)" as A1
+  usecase "审批岗位与注册\n(自动)" as A2
+  usecase "全局统计与导出\n(自动)" as A3
+  usecase "查看操作日志\n(自动)" as A4
+}
+
+' 外部人工活动（不在系统内）
+actor "面试官" as Interviewer
+
+' === 连线 ===
+Student -right-> S1
+Student -right-> S2
+Student -right-> S3
+Student -right-> S4
+Student -right-> S5
+Student -right-> S6
+
+D1 -left-> DeptAdmin
+D2 -left-> DeptAdmin
+D3 -left-> DeptAdmin
+
+A1 -left-> SuperAdmin
+A2 -left-> SuperAdmin
+A3 -left-> SuperAdmin
+A4 -left-> SuperAdmin
+
+' 跨边界关联
+D2 -right-> S6 : «通知»
+D2 --> Interviewer : 面试安排\n(人工执行)
+
+note right of Interviewer
+  面试环节为人工活动
+  不在系统自动化范围内
+end note
+
+@enduml

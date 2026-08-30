@@ -1,0 +1,52 @@
+@startuml 状态图-岗位生命周期
+skinparam stateBorderColor #1890ff
+skinparam stateBackgroundColor #e6f7ff
+skinparam stateArrowColor #333
+skinparam linetype ortho
+
+title 状态图：岗位(Job)完整生命周期
+
+[*] --> 待审批 : 部门管理员提交岗位\nentry / 填写岗位信息\ndo / 等待超级管理员审核
+
+state 待审批 {
+  state "岗位已创建\n等待审批" as draft
+}
+
+待审批 --> 招聘中 : 超级管理员审批通过\n[备注可选]\nentry / 通知发布部门
+待审批 --> 已拒绝 : 超级管理员拒绝\n[备注必填(≥10字)]\nentry / 通知发布部门+拒绝原因
+
+state 招聘中 {
+  state "学生可浏览和投递" as active
+  state "面试安排中" as interview
+
+  active --> interview : 部门安排面试
+  interview --> active : 面试完成/继续招聘
+}
+
+招聘中 --> 已结束 : 管理员手动结束\n或 配额招满自动结束\nentry / 隐藏岗位
+
+已拒绝 --> [*]
+已结束 --> [*]
+
+note right of 招聘中
+  触发事件：
+  • 学生投递申请
+  • 管理员审核申请
+  • 面试时间安排
+
+  守护条件：
+  [配额已满] → 自动结束
+  [手动操作] → 管理员结束
+end note
+
+note left of 待审批
+  状态 0
+  持续时间：待管理员处理
+end note
+
+note left of 招聘中
+  状态 1
+  持续时间：配额满或手动结束
+end note
+
+@enduml

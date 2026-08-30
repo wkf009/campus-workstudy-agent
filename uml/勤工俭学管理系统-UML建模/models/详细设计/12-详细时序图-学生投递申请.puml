@@ -1,0 +1,64 @@
+@startuml 详细时序图-学生投递申请
+skinparam sequenceParticipantBorderColor #1890ff
+skinparam sequenceParticipantBackgroundColor #e6f7ff
+skinparam sequenceArrowThickness 2
+skinparam linetype ortho
+
+title 详细时序图：学生投递申请（含 alt/loop 分支）
+
+actor "学生" as Student
+participant "StudentJobs.vue" as Vue
+participant "request.js" as Axios
+participant "Application\nController" as Ctrl
+participant "Application\nService" as Svc
+participant "Application\nMapper" as Mapper
+database "MySQL" as DB
+
+Student -> Vue: 浏览岗位列表
+
+loop 遍历岗位卡片
+  Vue -> Axios: GET /api/jobs?page=1&status=1
+  Axios -> Ctrl: HTTP GET
+  Ctrl --> Axios: PageResult<JobVO>
+  Axios --> Vue: 渲染岗位列表
+end
+
+Student -> Vue: 点击"投递"按钮
+Vue -> Vue: 弹出投递表单\n(自荐信 + 简历上传)
+Student -> Vue: 填写自荐信\n上传简历文件
+
+alt 简历文件不为空
+  Vue -> Axios: POST /api/files/upload (multipart/form-data)
+  Axios -> Ctrl: HTTP POST (文件上传)
+  Ctrl --> Axios: {url: "/uploads/resume_xxx.pdf"}
+  Axios --> Vue: 返回简历 URL
+end
+
+Vue -> Axios: POST /api/applications\n{jobId, resumeUrl, coverLetter}
+Axios -> Axios: 请求拦截器附加 Token
+Axios -> Ctrl: HTTP POST (Authorization: Bearer xxx)
+Ctrl -> Svc: applyForJob(ApplyDTO)
+
+Svc -> Mapper: countByUserAndJob(userId, jobId)
+Mapper -> DB: SELECT COUNT(*) FROM job_application\nWHERE user_id=? AND job_id=?
+
+alt 重复投递 (count > 0)
+  DB --> Mapper: 1
+  Mapper --> Svc: 1
+  Svc -[#red]-> Svc: throw new BizException("不可重复投递")
+  Svc -[#red]-> Ctrl: 抛出异常
+  Ctrl -[#red]-> Axios: {code:400, message:"不可重复投递"}
+  Axios --> Vue: 错误提示
+  Vue --> Student: "您已投递过该岗位"
+else 首次投递 (count == 0)
+  Svc -> Mapper: insert(Application{jobId, userId, resumeUrl, coverLetter, status=0})
+  Mapper -> DB: INSERT INTO job_application (...) VALUES (...)
+  DB --> Mapper: OK (1 row)
+  Mapper --> Svc: 插入成功
+  Svc --> Ctrl: 成功
+  Ctrl --> Axios: {code:200, message:"投递成功"}
+  Axios --> Vue: 成功响应
+  Vue --> Student: 提示"投递成功，等待审核"
+end
+
+@enduml

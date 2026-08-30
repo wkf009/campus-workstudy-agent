@@ -1,0 +1,35 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/workstudy?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 50MB
+  # ===== Spring AI Alibaba（通义千问 DashScope） =====
+  # API Key 只从环境变量 DASHSCOPE_API_KEY 读取，禁止硬编码提交到仓库！
+  # 本地运行示例：PowerShell 里先执行  $env:DASHSCOPE_API_KEY="sk-xxx"  再启动；
+  # 或复制 .env.example 的说明配置。见 backend/.env.example。
+  ai:
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY:}
+      chat:
+        options:
+          model: qwen-plus
+      embedding:
+        options:
+          model: text-embedding-v3
+
+server:
+  port: 8080
+
+jwt:
+  secret: ${JWT_SECRET:thisIsASecretKeyForJWTTokenGenerationAndItMustBeAtLeastSixtyFourCharactersLongToMeetHS512Requirements}
+  expiration: 86400000
+
+logging:
+  level:
+    com.workstudy: DEBUG

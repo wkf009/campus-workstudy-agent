@@ -1,0 +1,112 @@
+@startuml 领域模型图-勤工俭学管理系统
+skinparam classBorderColor #333
+skinparam classBackgroundColor #fafafa
+skinparam packageBorderColor #1890ff
+skinparam linetype ortho
+
+title 领域模型图（业务对象图）：勤工俭学管理系统
+
+package "用户域" {
+  class 用户 <<实体>> {
+    + 用户ID : Long
+    + 用户名 : String
+    + 加密密码 : String
+    + 真实姓名 : String
+    + 角色 : Integer {0=学生, 1=企业导师, 2=部门管理员, 3=超级管理员}
+    + 联系电话 : String
+    + 邮箱 : String
+    + 头像URL : String
+    + 性别 : Integer {0=未知, 1=男, 2=女}
+    + 学号/工号 : String
+    + 专业 : String
+    + 状态 : Integer {0=禁用, 1=正常}
+    --
+    1..*
+  }
+
+  class 部门 <<实体>> {
+    + 部门ID : Long
+    + 部门名称 : String
+    + 描述 : String
+    --
+    1..*
+  }
+}
+
+package "岗位域" {
+  class 岗位 <<聚合根>> {
+    + 岗位ID : Long
+    + 标题 : String
+    + 描述 : String
+    + 任职要求 : String
+    + 薪资 : BigDecimal
+    + 工作地点 : String
+    + 招聘名额 : Integer
+    + 工作时间 : String
+    + 联系人 : String
+    + 联系电话 : String
+    + 部门名称 : String (冗余)
+    + 状态 : Integer {0=待审批, 1=招聘中, 2=已结束, 3=已拒绝}
+    + 审批备注 : String
+    --
+    1..*
+  }
+
+  class 岗位申请 <<实体>> {
+    + 申请ID : Long
+    + 简历URL : String
+    + 自荐信 : String
+    + 状态 : Integer {0=待审, 1=通过, 2=拒绝, 3=取消}
+    + 审核备注 : String
+    + 申请时间 : DateTime
+    + 审核时间 : DateTime
+    + 面试时间 : DateTime
+    --
+    0..*
+  }
+}
+
+package "通知域" {
+  class 通知 <<实体>> {
+    + 通知ID : Long
+    + 标题 : String
+    + 内容 : String
+    + 类型 : Integer {0=系统, 1=岗位, 2=申请}
+    + 关联ID : Long
+    + 是否已读 : Integer
+    --
+    0..*
+  }
+}
+
+package "审计域" {
+  class 操作日志 <<实体>> {
+    + 日志ID : Long
+    + 操作人用户名 : String
+    + 操作描述 : String
+    + 方法名 : String
+    + 请求参数 : String
+    + IP地址 : String
+    + 操作时间 : DateTime
+    --
+    0..*
+  }
+}
+
+' === 关联关系 ===
+用户 "0..*" -- "1" 部门 : 所属 >
+岗位 "0..*" -- "1" 部门 : 归属 >
+岗位 "1" -- "0..*" 岗位申请 : 关联 >
+用户 "1" -- "0..*" 岗位申请 : 申请人 >
+用户 "1" -- "0..*" 操作日志 : 操作人 >
+用户 "1" -- "0..*" 通知 : 接收者 >
+用户 "0..*" -- "0..*" 岗位 : 发布人 >
+
+note right of 岗位申请
+  业务约束：
+  • 同一学生不可重复投递同一岗位
+  • 申请时岗位须处于"招聘中"状态
+  • 岗位配额满后不可继续投递
+end note
+
+@enduml

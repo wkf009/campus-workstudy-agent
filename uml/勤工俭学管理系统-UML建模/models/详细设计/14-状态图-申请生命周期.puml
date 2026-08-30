@@ -1,0 +1,38 @@
+@startuml 状态图-申请生命周期
+skinparam stateBorderColor #52c41a
+skinparam stateBackgroundColor #f6ffed
+skinparam stateArrowColor #333
+skinparam linetype ortho
+
+title 状态图：岗位申请(Application)生命周期
+
+[*] --> 待审核 : 学生提交申请\nentry / 上传简历+自荐信\ndo / 等待部门管理员审核
+
+state 待审核 {
+  state "申请已提交\n等待审核" as pending
+}
+
+待审核 --> 已通过 : 部门审核通过\n[可选：安排面试时间]\nentry / 生成通知推送学生
+待审核 --> 已拒绝 : 部门审核拒绝\n[备注≥10字]\nentry / 生成拒绝通知+原因
+待审核 --> 已取消 : 学生主动取消\nentry / 撤回申请
+
+已通过 --> [*] : 终态
+已拒绝 --> [*] : 终态
+已取消 --> [*] : 终态
+
+note right of 已通过
+  触发动作：
+  • 生成通知给学生
+  • 记录面试时间(若有)
+  • 扣减岗位可用配额
+end note
+
+note left of 已拒绝
+  守护条件：
+  [备注 ≥ 10字] → 允许拒绝
+  [备注 < 10字] → 拒绝失败
+
+  审核备注必填且不少于10字
+end note
+
+@enduml

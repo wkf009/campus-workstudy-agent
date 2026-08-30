@@ -1,0 +1,81 @@
+@startuml 架构时序图-学生申请审核完整链路
+skinparam sequenceParticipantBorderColor #1890ff
+skinparam sequenceParticipantBackgroundColor #e6f7ff
+skinparam sequenceArrowThickness 2
+skinparam linetype ortho
+
+title 架构时序图：学生申请审核完整跨层调用链路
+
+actor "学生" as Student
+box "表示层" #e6f7ff
+  participant "StudentJobs.vue" as Vue1
+  participant "request.js\n(Axios拦截器)" as Axios
+end box
+box "业务层" #f6ffed
+  participant "ApplicationController" as Ctrl
+  participant "ApplicationService" as Svc
+  participant "NotificationService" as NotifySvc
+end box
+box "数据层" #fff7e6
+  participant "ApplicationMapper" as Mapper
+  participant "NotificationMapper" as NotifyMapper
+end box
+database "MySQL" as DB
+
+actor "部门管理员" as DeptAdmin
+box "表示层" #e6f7ff
+  participant "DepartmentApplications.vue" as Vue2
+end box
+
+== 学生投递申请 ==
+Student -> Vue1: 点击"投递"按钮
+Vue1 -> Axios: POST /api/applications\n{jobId, resumeUrl, coverLetter}
+Axios -> Axios: 请求拦截器\n自动附加 JWT Token
+Axios -> Ctrl: HTTP POST (Bearer Token)
+Ctrl -> Svc: applyForJob(dto)
+Svc -> Mapper: countByUserAndJob(userId, jobId)
+Mapper -> DB: SELECT COUNT(*)
+DB --> Mapper: 0 (未重复投递)
+Svc -> Mapper: insert(application)
+Mapper -> DB: INSERT INTO job_application
+DB --> Mapper: OK
+Mapper --> Svc: success
+Svc --> Ctrl: success
+Ctrl --> Axios: Response {code:200, data:null}
+Axios -> Axios: 响应拦截器\n统一错误处理
+Axios --> Vue1: 响应数据
+Vue1 --> Student: 提示"投递成功"
+
+== 部门审核申请 ==
+DeptAdmin -> Vue2: 进入申请审核页面
+Vue2 -> Axios: GET /api/applications?deptId=X
+Axios -> Ctrl: HTTP GET
+Ctrl -> Svc: listByDept(deptId, page)
+Svc -> Mapper: selectPage(deptId)
+Mapper -> DB: SELECT * FROM job_application
+DB --> Mapper: 申请列表
+Mapper --> Svc: Page<Application>
+Svc --> Ctrl: PageResult
+Ctrl --> Axios: Response {code:200, data: PageResult}
+Axios --> Vue2: 分页数据
+Vue2 --> DeptAdmin: 展示申请列表
+
+DeptAdmin -> Vue2: 点击"通过" + 安排面试时间
+Vue2 -> Axios: PUT /api/applications/{id}\n{status:1, interviewTime:...}
+Axios -> Ctrl: HTTP PUT
+Ctrl -> Svc: auditApplication(id, dto)
+Svc -> Mapper: updateById(application)
+Mapper -> DB: UPDATE job_application SET status=1
+DB --> Mapper: OK
+Svc -> NotifySvc: createNotification(studentId, "申请已通过")
+NotifySvc -> NotifyMapper: insert(notification)
+NotifyMapper -> DB: INSERT INTO notification
+DB --> NotifyMapper: OK
+NotifyMapper --> NotifySvc: success
+NotifySvc --> Svc: 通知已生成
+Svc --> Ctrl: success
+Ctrl --> Axios: Response {code:200}
+Axios --> Vue2: 成功
+Vue2 --> DeptAdmin: 提示"审核完成"
+
+@enduml

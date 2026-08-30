@@ -1,0 +1,57 @@
+@startuml 部署图-勤工俭学管理系统
+skinparam nodeBorderColor #1890ff
+skinparam nodeBackgroundColor #e6f7ff
+skinparam databaseBorderColor #722ed1
+skinparam databaseBackgroundColor #f9f0ff
+skinparam cloudBorderColor #13c2c2
+skinparam linetype ortho
+
+title 部署图（物理架构）：Docker 容器化部署
+
+node "用户浏览器" as Browser
+
+cloud "Docker Host" {
+
+  node "Nginx 容器\n(nginx:alpine)\n端口: 80" as Nginx {
+    artifact "前端静态资源\n(Vue3 dist/)" as Frontend
+    artifact "nginx.conf\n(反向代理配置)" as NginxConf
+  }
+
+  node "Spring Boot 容器\n(openjdk:21)\n端口: 8080" as Backend {
+    artifact "backend.jar\n(Spring Boot Fat Jar)" as Jar
+    artifact "application.yml\n(多环境配置)" as AppConfig
+    component "文件存储\n(/app/uploads)" as Uploads
+  }
+
+  node "MySQL 容器\n(mysql:8.0)\n端口: 3306" as MySQL {
+    database "workstudy 数据库\n(utf8mb4)" as DB
+  }
+
+  database "Docker Volume\nmysql_data" as Vol1
+  database "Docker Volume\nuploads_data" as Vol2
+}
+
+' 通信路径
+Browser --> Nginx : HTTP
+Nginx --> Backend : /api/* 反向代理
+Backend --> MySQL : JDBC
+MySQL --> Vol1 : 数据持久化
+Backend --> Vol2 : 文件持久化
+
+note right of Nginx
+  Nginx 职责：
+  • 静态资源托管
+  • /api/ 路径反向代理到后端
+  • try_files 支持 SPA History 模式
+  • 生产环境可扩展 SSL 终端
+end note
+
+note bottom of MySQL
+  MySQL 配置：
+  • healthcheck: mysqladmin ping
+  • 初始化: init.sql 自动建表
+  • 字符集: utf8mb4
+  • 后端依赖健康检查后启动
+end note
+
+@enduml

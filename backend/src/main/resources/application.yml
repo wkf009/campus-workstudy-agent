@@ -1,0 +1,22 @@
+spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+# 文件上传配置
+file:
+  upload-dir: ${FILE_UPLOAD_DIR:uploads}
+
+# Knife4j API文档配置
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true

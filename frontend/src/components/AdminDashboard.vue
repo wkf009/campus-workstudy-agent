@@ -1,0 +1,83 @@
+<template>
+  <div class="dashboard">
+    <a-tabs v-model:activeKey="activeTab">
+      <a-tab-pane key="dashboard" tab="管理员首页">
+        <div class="overview-cards">
+          <div class="card"><h3>欢迎，{{ user.realName || user.username }}</h3><p>角色：超级管理员</p></div>
+          <div class="card"><h3>用户统计</h3>
+            <p><strong>学生：</strong>{{ stats.studentCount }}</p>
+            <p><strong>企业导师：</strong>{{ stats.mentorCount }}</p>
+            <p><strong>部门管理员：</strong>{{ stats.deptAdminCount }}</p>
+            <p><strong>总用户：</strong>{{ stats.totalUsers }}</p>
+          </div>
+          <div class="card"><h3>岗位统计</h3>
+            <p><strong>招聘中：</strong>{{ stats.publishedJobs }}</p>
+            <p><strong>待审批：</strong>{{ stats.pendingJobs }}</p>
+            <p><strong>总岗位：</strong>{{ stats.totalJobs }}</p>
+          </div>
+          <div class="card"><h3>系统操作</h3><a-button type="link" @click="activeTab='jobs'">管理岗位</a-button><a-button type="link" @click="activeTab='users'">管理用户</a-button></div>
+        </div>
+        <div class="charts-row">
+          <div ref="chartRef" style="width:100%;height:300px"></div>
+        </div>
+      </a-tab-pane>
+      <a-tab-pane key="jobs" tab="岗位管理"><admin-jobs /></a-tab-pane>
+      <a-tab-pane key="users" tab="用户管理"><admin-users /></a-tab-pane>
+    </a-tabs>
+  </div>
+</template>
+
+<script>
+import { ref, onMounted, nextTick } from 'vue'
+import AdminJobs from './AdminJobs.vue'
+import AdminUsers from './AdminUsers.vue'
+import request from '../utils/request.js'
+import * as echarts from 'echarts'
+
+export default {
+  name: 'AdminDashboard',
+  components: { AdminJobs, AdminUsers },
+  setup() {
+    const activeTab = ref('dashboard')
+    const chartRef = ref(null)
+    const user = ref({})
+    const stats = ref({ totalUsers:0, studentCount:0, mentorCount:0, deptAdminCount:0, totalJobs:0, publishedJobs:0, pendingJobs:0 })
+
+    onMounted(async () => {
+      const userStr = localStorage.getItem('user')
+      if (userStr) user.value = JSON.parse(userStr)
+      try {
+        const res = await request.get('/stats/overview')
+        if (res.code === 200) stats.value = { ...stats.value, ...res.data }
+      } catch (e) {}
+
+      try {
+        const appsRes = await request.get('/stats/applications-trend')
+        const trendData = appsRes.data || []
+        await nextTick()
+        if (chartRef.value) {
+          const chart = echarts.init(chartRef.value)
+          chart.setOption({
+            title: { text: '申请趋势统计', left: 'center' },
+            tooltip: { trigger: 'axis' },
+            xAxis: { type: 'category', data: trendData.map(d => d.date) },
+            yAxis: { type: 'value' },
+            series: [{ name: '申请量', type: 'line', data: trendData.map(d => d.count), smooth: true, areaStyle: {} }]
+          })
+        }
+      } catch (e) {}
+    })
+
+    return { activeTab, chartRef, user, stats }
+  }
+}
+</script>
+
+<style scoped>
+.overview-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+.charts-row { margin-top: 20px; }
+.card { background-color: #f9f9f9; padding: 24px; border-radius: 8px; border: 1px solid #e8e8e8; transition: all 0.3s ease; }
+.card:hover { transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); background-color: #fff; }
+.card h3 { margin-bottom: 16px; color: #333; font-size: 18px; font-weight: 600; }
+.card p { margin: 8px 0; color: #666; line-height: 1.5; }
+</style>

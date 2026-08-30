@@ -1,0 +1,179 @@
+@startuml 设计类图-勤工俭学管理系统
+skinparam classBorderColor #333
+skinparam classBackgroundColor #fafafa
+skinparam interfaceBackgroundColor #e6f7ff
+skinparam abstractClassBackgroundColor #fff7e6
+skinparam linetype ortho
+
+title 设计类图：含方法签名、可见性、设计模式
+
+' ═══════════ Controller 层 ═══════════
+package "Controller 层" #e6f7ff {
+
+  class AuthController <<RestController>> {
+    + login(LoginDTO dto) : Result<LoginVO>
+    + register(RegisterDTO dto) : Result<Void>
+    + currentUser() : Result<UserVO>
+  }
+
+  class JobController <<RestController>> {
+    + listJobs(JobSearchDTO dto) : PageResult<JobVO>
+    + getJobById(Long id) : Result<JobVO>
+    + publishJob(JobDTO dto) : Result<Void>
+    + updateJob(JobDTO dto) : Result<Void>
+    + auditJob(Long id, AuditDTO dto) : Result<Void>
+    + deleteJob(Long id) : Result<Void>
+  }
+
+  class ApplicationController <<RestController>> {
+    + applyForJob(ApplyDTO dto) : Result<Void>
+    + listMyApplications(int page, int size) : PageResult<ApplicationVO>
+    + listDeptApplications(Long deptId, int page, int size) : PageResult<ApplicationVO>
+    + auditApplication(Long id, AuditDTO dto) : Result<Void>
+    + cancelApplication(Long id) : Result<Void>
+  }
+
+  class UserController <<RestController>> {
+    + listUsers(UserSearchDTO dto) : PageResult<UserVO>
+    + updateUserStatus(Long id, int status) : Result<Void>
+    + deleteUser(Long id) : Result<Void>
+  }
+
+  class DepartmentController <<RestController>> {
+    + listDepartments() : Result<List<DepartmentVO>>
+    + createDepartment(DeptDTO dto) : Result<Void>
+    + updateDepartment(DeptDTO dto) : Result<Void>
+    + deleteDepartment(Long id) : Result<Void>
+  }
+
+  class NotificationController <<RestController>> {
+    + listNotifications() : Result<List<NotificationVO>>
+    + markAsRead(Long id) : Result<Void>
+  }
+
+  class ExportController <<RestController>> {
+    + exportJobs() : void (HttpServletResponse)
+    + exportApplications() : void (HttpServletResponse)
+  }
+
+  class StatsController <<RestController>> {
+    + getDashboardStats() : Result<StatsVO>
+    + getJobStats() : Result<List<ChartVO>>
+  }
+}
+
+' ═══════════ Service 层 ═══════════
+package "Service 层" #f6ffed {
+
+  interface IAuthService {
+    + login(String username, String password) : LoginVO
+    + register(RegisterDTO dto) : void
+    + getCurrentUser() : UserVO
+  }
+
+  class AuthServiceImpl {
+    - userMapper : UserMapper
+    - jwtUtils : JwtUtils
+    + login(String username, String password) : LoginVO
+    + register(RegisterDTO dto) : void
+    - encryptPassword(String raw) : String
+    - verifyPassword(String raw, String encoded) : boolean
+  }
+
+  interface IJobService {
+    + listJobs(JobSearchDTO dto) : PageResult<JobVO>
+    + publishJob(JobDTO dto) : void
+    + auditJob(Long id, AuditDTO dto) : void
+  }
+
+  class JobServiceImpl {
+    - jobMapper : JobMapper
+    + listJobs(JobSearchDTO dto) : PageResult<JobVO>
+    + publishJob(JobDTO dto) : void
+    + auditJob(Long id, AuditDTO dto) : void
+    - checkQuota(Long jobId) : boolean
+  }
+
+  interface IApplicationService {
+    + applyForJob(ApplyDTO dto) : void
+    + auditApplication(Long id, AuditDTO dto) : void
+    + listByDept(Long deptId, int page, int size) : PageResult<ApplicationVO>
+  }
+
+  class ApplicationServiceImpl {
+    - applicationMapper : ApplicationMapper
+    - notificationService : NotificationService
+    + applyForJob(ApplyDTO dto) : void
+    + auditApplication(Long id, AuditDTO dto) : void
+    - isDuplicateApply(Long userId, Long jobId) : boolean
+    - sendAuditNotification(Long userId, String result) : void
+  }
+
+  interface INotificationService {
+    + createNotification(Long userId, String title, String content, int type) : void
+    + listByUserId(Long userId) : List<NotificationVO>
+  }
+
+  class OperationLogAspect <<Aspect>> {
+    - operationLogMapper : OperationLogMapper
+    + logOperation(ProceedingJoinPoint jp, LogOperation anno) : Object
+    - extractIp(HttpServletRequest request) : String
+  }
+}
+
+' ═══════════ Mapper 层 ═══════════
+package "Mapper 层" #fff7e6 {
+  interface UserMapper {
+    + selectByUsername(String username) : User
+    + selectPage(UserSearchDTO dto) : Page<User>
+    + updateById(User user) : int
+    + deleteById(Long id) : int
+  }
+  interface JobMapper {
+    + selectPage(JobSearchDTO dto) : Page<Job>
+    + selectById(Long id) : Job
+    + insert(Job job) : int
+    + updateById(Job job) : int
+  }
+  interface ApplicationMapper {
+    + insert(Application app) : int
+    + selectPage(int page, int size, Long deptId) : Page<Application>
+    + updateById(Application app) : int
+    + countByUserAndJob(Long userId, Long jobId) : int
+  }
+  interface NotificationMapper {
+    + insert(Notification n) : int
+    + selectByUserId(Long userId) : List<Notification>
+    + updateReadStatus(Long id, int isRead) : int
+  }
+}
+
+' ═══════════ 关系 ═══════════
+AuthController --> IAuthService : 依赖
+AuthServiceImpl ..|> IAuthService : 实现
+AuthServiceImpl --> UserMapper
+
+JobController --> IJobService
+JobServiceImpl ..|> IJobService
+JobServiceImpl --> JobMapper
+
+ApplicationController --> IApplicationService
+ApplicationServiceImpl ..|> IApplicationService
+ApplicationServiceImpl --> ApplicationMapper
+ApplicationServiceImpl --> INotificationService
+
+UserController --> UserMapper : 直接注入
+
+StatsController --> JobMapper
+StatsController --> ApplicationMapper
+
+OperationLogAspect --> OperationLogMapper
+
+note right of ApplicationServiceImpl
+  设计模式：
+  • Controller-Service-Mapper 三层依赖倒置
+  • Service 面向接口编程
+  • AOP 切面实现操作日志横切关注点
+end note
+
+@enduml

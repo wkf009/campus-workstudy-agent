@@ -1,0 +1,106 @@
+@startuml 组件图-勤工俭学管理系统
+skinparam packageBorderColor #1890ff
+skinparam componentBorderColor #333
+skinparam arrowColor #666
+skinparam linetype ortho
+
+title 组件图（逻辑视图）：三层架构模块划分
+
+package "表示层 (Presentation)" #e6f7ff {
+  component "Home 首页\n(登录/注册)" as Home
+  component "Student 学生端\n(岗位浏览/申请/通知)" as StudentView
+  component "Department 部门端\n(岗位管理/审核/统计)" as DeptView
+  component "Admin 管理端\n(用户/部门/审批/日志)" as AdminView
+  component "Vue Router\n(路由守卫)" as Router
+  component "Axios\n(HTTP客户端)" as Axios
+  component "Ant Design Vue\n(UI组件库)" as Antd
+  component "ECharts\n(图表可视化)" as ECharts
+}
+
+package "业务层 (Business)" #f6ffed {
+  component "AuthController\n认证接口" as AuthCtrl
+  component "UserController\n用户接口" as UserCtrl
+  component "JobController\n岗位接口" as JobCtrl
+  component "ApplicationController\n申请接口" as AppCtrl
+  component "DepartmentController\n部门接口" as DeptCtrl
+  component "NotificationController\n通知接口" as NotifyCtrl
+  component "ExportController\n导出接口" as ExportCtrl
+  component "StatsController\n统计接口" as StatsCtrl
+  component "FileController\n文件接口" as FileCtrl
+  component "OperationLogController\n日志接口" as LogCtrl
+
+  component "UserService" as UserSvc
+  component "JobService" as JobSvc
+  component "ApplicationService" as AppSvc
+  component "DepartmentService" as DeptSvc
+  component "NotificationService" as NotifySvc
+
+  component "JwtUtils\nToken工具" as JwtUtil
+  component "JwtFilter\n认证过滤器" as JwtFilter
+  component "OperationLogAspect\n日志切面" as LogAspect
+}
+
+package "数据层 (Data)" #fff7e6 {
+  component "UserMapper" as UserMapper
+  component "JobMapper" as JobMapper
+  component "ApplicationMapper" as AppMapper
+  component "DepartmentMapper" as DeptMapper
+  component "NotificationMapper" as NotifyMapper
+  component "OperationLogMapper" as LogMapper
+  component "PageHelper\n分页插件" as PageHelper
+}
+
+database "MySQL 8.0\n(workstudy)" as DB
+
+' 依赖关系
+Home --> Axios
+StudentView --> Axios
+DeptView --> Axios
+AdminView --> Axios
+Axios --> AuthCtrl : HTTP /api/*
+Axios --> UserCtrl
+Axios --> JobCtrl
+Axios --> AppCtrl
+Axios --> DeptCtrl
+Axios --> NotifyCtrl
+Axios --> ExportCtrl
+Axios --> StatsCtrl
+Axios --> FileCtrl
+Axios --> LogCtrl
+
+AuthCtrl --> UserSvc
+UserCtrl --> UserSvc
+JobCtrl --> JobSvc
+AppCtrl --> AppSvc
+DeptCtrl --> DeptSvc
+NotifyCtrl --> NotifySvc
+ExportCtrl --> JobSvc
+ExportCtrl --> AppSvc
+StatsCtrl --> JobSvc
+StatsCtrl --> AppSvc
+FileCtrl --> AppSvc
+LogCtrl --> LogMapper
+
+UserSvc --> UserMapper
+JobSvc --> JobMapper
+AppSvc --> AppMapper
+DeptSvc --> DeptMapper
+NotifySvc --> NotifyMapper
+
+UserMapper --> DB
+JobMapper --> DB
+AppMapper --> DB
+DeptMapper --> DB
+NotifyMapper --> DB
+LogMapper --> DB
+
+JwtFilter ..> JwtUtil : 依赖
+JwtFilter ..> UserMapper : 查询用户
+
+note bottom of DB
+  各层依赖方向：
+  表示层 → 业务层 → 数据层
+  遵循依赖倒置，上层不直接依赖下层实现
+end note
+
+@enduml

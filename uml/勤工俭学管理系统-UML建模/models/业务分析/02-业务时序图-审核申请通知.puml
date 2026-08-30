@@ -1,0 +1,45 @@
+@startuml 业务时序图-审核申请通知
+skinparam sequenceParticipantBorderColor #1890ff
+skinparam sequenceParticipantBackgroundColor #e6f7ff
+skinparam sequenceArrowThickness 2
+skinparam noteBorderColor #faad14
+skinparam noteBackgroundColor #fffbe6
+
+title 业务时序图：部门审核学生申请 & 系统推送通知
+
+actor "部门管理员" as DeptAdmin
+participant "勤工俭学系统" as System
+actor "学生" as Student
+
+== 审核申请 ==
+DeptAdmin -> System: 查看本部门待审申请列表
+System --> DeptAdmin: 返回申请列表\n(含学生信息、简历、自荐信)
+DeptAdmin -> System: 查看学生简历附件
+
+alt 审核通过
+    DeptAdmin -> System: 通过申请 + 安排面试时间
+    System -> System: 更新申请状态=已通过\n记录面试时间
+    System -> System: 创建通知记录\n(类型=申请通知)
+    System --> DeptAdmin: 提示"审核完成，已通知学生"
+else 审核拒绝
+    DeptAdmin -> System: 拒绝申请 + 填写审核备注
+    System -> System: 更新申请状态=已拒绝
+    System -> System: 创建通知记录\n(类型=申请通知，含拒绝原因)
+    System --> DeptAdmin: 提示"已拒绝该申请"
+end
+
+== 通知触达 ==
+Student -> System: 登录系统/刷新页面
+System --> Student: 返回未读通知列表
+Student -> System: 点击查看通知详情
+System -> System: 标记通知为已读
+System --> Student: 显示通知内容\n(申请结果、面试安排/拒绝原因)
+
+note over System
+  通知规则：
+  1. 审核结果实时生成通知
+  2. 学生登录后可见未读通知
+  3. 通知支持"已读/未读"状态标记
+end note
+
+@enduml

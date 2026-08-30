@@ -1,0 +1,80 @@
+# 架构决策记录（ADR）：勤工俭学管理系统
+
+## ADR-001：认证方案选择 JWT 而非 Session
+
+### 背景
+系统需要为三类用户（学生、部门管理员、超级管理员）提供登录认证，并在后续请求中验证身份和权限。传统 Session 方案和 JWT 方案各有优劣。
+
+### 决策
+采用 **JWT（JSON Web Token）无状态认证**。
+
+### 理由
+1. **无状态扩展**：Docker Compose 部署时支持后端水平扩展，JWT 免去了 Session 共享（Redis）的额外组件
+2. **角色内嵌**：JWT Payload 直接存储 `userId` 和 `role`，过滤器解析 Token 即可获取身份，无需每次查库
+3. **前后分离友好**：前端 `localStorage` 存储 Token，请求拦截器自动附加 `Authorization: Bearer <token>`
+4. **安全性**：Token 采用 HMAC-SHA256 签名，`JWT_SECRET` 通过环境变量注入，不硬编码
+
+### 影响
+- **正面**：简化服务端状态管理，减少数据库查询，部署组件少一个
+- **负面**：Token 泄露风险（通过设置 24h 过期 + HTTPS 缓解）；无法主动失效 Token（通过前端清除 + 短过期时间缓解）
+- **实现**：`JwtFilter` 继承 `OncePerRequestFilter`，每次请求校验签名并注入 SecurityContext
+
+---
+
+## ADR-002：数据库选择 MySQL 8.0 而非 PostgreSQL
+
+### 背景
+系统需要关系型数据库存储用户、岗位、申请、通知、日志等结构化数据。
+
+### 决策
+采用 **MySQL 8.0**。
+
+### 理由
+1. **生态成熟**：国内高校信息化环境普遍使用 MySQL，运维人员熟悉
+2. **Docker 支持好**：`mysql:8.0` 官方镜像稳定，`init.sql` 自动初始化建表
+3. **MyBatis 兼容**：MySQL JDBC Driver 与 MyBatis 配合成熟，PageHelper 分页插件对 MySQL 优化最完善
+4. **字符集**：utf8mb4 全面支持中文及特殊字符
+
+### 影响
+- **正面**：部署简单，Docker 镜像体积小，初始化通过 SQL 脚本即可
+- **负面**：相比 PostgreSQL 缺少部分高级特性（窗口函数较弱、JSON 支持一般），但本项目不需要
+- **实现**：健康检查 `mysqladmin ping`，后端依赖健康状态启动
+
+---
+
+## ADR-003：API 文档选用 Knife4j 而非手写文档
+
+### 背景
+前后端分离开发需要明确的接口约定，需为前端开发者提供可读的 API 文档。
+
+### 决策
+采用 **Knife4j（基于 Swagger/OpenAPI 3）自动生成 API 文档**。
+
+### 理由
+1. **零额外维护**：接口参数、返回值直接在 Controller 代码中注解，文档与代码同步
+2. **在线调试**：Knife4j 提供在线调试界面，前端开发者可直接在文档页测试接口
+3. **Java 21 兼容**：选择 `knife4j-openapi3-jakarta` 适配 Jakarta EE
+
+### 影响
+- **正面**：开发效率高，前后端联调时无需额外文档工具
+- **负面**：Controller 代码增加注解，但对可读性影响不大
+
+---
+
+## ADR-004：部署方案选择 Docker Compose 而非 Kubernetes
+
+### 背景
+系统需要在答辩时演示完整功能，需要包含数据库、后端、前端的全栈部署。
+
+### 决策
+采用 **Docker Compose 三容器编排**。
+
+### 理由
+1. **规模匹配**：单机三容器（Nginx + Spring Boot + MySQL），不需要 K8s 的集群调度能力
+2. **一键启动**：`docker-compose up -d` 一行命令即可启动全部服务
+3. **环境一致性**：消除 Windows/Mac/Linux 环境差异，答辩演示稳定可靠
+4. **数据持久化**：通过 Docker Volume 持久化数据库和上传文件
+
+### 影响
+- **正面**：部署极简，交付物为一个 `docker-compose.yml` + `Dockerfile` + 前端 dist
+- **负面**：单机部署无高可用，但毕业设计场景不需要

@@ -1,0 +1,49 @@
+@startuml 业务时序图-岗位发布审批
+skinparam sequenceParticipantBorderColor #1890ff
+skinparam sequenceParticipantBackgroundColor #e6f7ff
+skinparam sequenceArrowThickness 2
+skinparam noteBorderColor #faad14
+skinparam noteBackgroundColor #fffbe6
+
+title 业务时序图：部门发布岗位 & 管理员审批
+
+actor "部门管理员" as DeptAdmin
+participant "勤工俭学系统" as System
+actor "超级管理员" as SuperAdmin
+
+== 发布岗位 ==
+DeptAdmin -> System: 登录系统并进入岗位管理
+DeptAdmin -> System: 填写岗位信息\n(标题、描述、要求、薪资\n名额、工作地点、联系人)
+System -> System: 校验必填字段
+System -> System: 创建岗位记录\n(状态=待审批)
+System --> DeptAdmin: 提示"岗位提交成功，等待管理员审批"
+
+== 管理员审批 ==
+SuperAdmin -> System: 登录系统并进入审批列表
+System --> SuperAdmin: 返回待审批岗位列表
+SuperAdmin -> System: 查看岗位详情
+
+alt 审批通过
+    SuperAdmin -> System: 审批通过(可填写备注)
+    System -> System: 更新岗位状态=招聘中
+    System -> System: 发送通知给发布部门
+    System --> SuperAdmin: 提示"审批完成，岗位已上线"
+else 审批拒绝
+    SuperAdmin -> System: 审批拒绝(需填写原因)
+    System -> System: 更新岗位状态=已拒绝
+    System -> System: 发送拒绝原因通知给发布部门
+    System --> SuperAdmin: 提示"已拒绝该岗位发布"
+end
+
+== 查看结果 ==
+DeptAdmin -> System: 查看岗位状态
+System --> DeptAdmin: 返回审批结果及备注
+
+note over DeptAdmin, SuperAdmin
+  业务规则：
+  1. 岗位发布须经校级管理员审批
+  2. 拒绝时必须填写原因（不少于10字）
+  3. 审批通过后方可被学生检索
+end note
+
+@enduml
