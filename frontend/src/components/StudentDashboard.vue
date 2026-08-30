@@ -16,6 +16,34 @@
           <div class="card"><h3>岗位浏览</h3><p>查看并申请勤工俭学岗位</p><a-button type="link" @click="goToJobs">浏览岗位</a-button></div>
           <div class="card"><h3>我的申请</h3><p>查看申请状态和结果</p><a-button type="link" @click="goToApps">查看申请</a-button></div>
         </div>
+
+        <!-- AI 智能推荐（Agent 1） -->
+        <div class="ai-section">
+          <div class="ai-header">
+            <h3>🤖 AI 智能推荐</h3>
+            <div class="ai-actions">
+              <a-button size="small" @click="fetchRecommendations" :loading="recLoading">刷新推荐</a-button>
+              <a-button size="small" style="margin-left:8px" @click="rebuildProfile" :loading="profileLoading">重建我的画像</a-button>
+            </div>
+          </div>
+          <div v-if="recLoading" class="loading">AI 正在分析你的画像并匹配岗位...</div>
+          <div v-else-if="recError" class="card"><p>{{ recError }}</p></div>
+          <div v-else-if="recommendations.length === 0" class="card"><p>暂无推荐，先完善个人信息或浏览岗位，让 AI 更懂你~</p></div>
+          <div v-else class="rec-list">
+            <div v-for="(rec, idx) in recommendations" :key="rec.jobId" class="rec-card">
+              <div class="rec-rank">TOP{{ idx + 1 }}</div>
+              <div class="rec-main">
+                <h4>{{ rec.title }} <a-tag color="blue">{{ Math.round(rec.score) }} 分</a-tag></h4>
+                <p>{{ rec.departmentName }} · ¥{{ rec.salary }}/时 · {{ rec.location || '地点未设置' }} · {{ rec.workTime || '时间未设置' }}</p>
+                <p class="rec-reason">💡 {{ rec.reason }}</p>
+                <div class="rec-tags">
+                  <a-tag v-for="s in rec.strategies" :key="s" color="green">{{ s }}</a-tag>
+                </div>
+                <a-button type="primary" size="small" @click="applyRec(rec.jobId)">立即申请</a-button>
+              </div>
+            </div>
+          </div>
+        </div>
       </a-tab-pane>
       <a-tab-pane key="jobs" tab="岗位浏览"><student-jobs /></a-tab-pane>
       <a-tab-pane key="applications" tab="我的申请"><student-applications /></a-tab-pane>
@@ -51,10 +79,46 @@ export default {
     const editProfileVisible = ref(false)
     const profileForm = ref({})
 
+    // AI 智能推荐
+    const recommendations = ref([])
+    const recLoading = ref(false)
+    const recError = ref('')
+    const profileLoading = ref(false)
+
     onMounted(() => {
       const userStr = localStorage.getItem('user')
       if (userStr) user.value = JSON.parse(userStr)
+      fetchRecommendations()
     })
+
+    const fetchRecommendations = async () => {
+      recLoading.value = true
+      recError.value = ''
+      try {
+        const res = await request.get('/agent/recommendations', { params: { topN: 3 } })
+        recommendations.value = res.data || []
+      } catch (e) {
+        recError.value = '推荐服务暂不可用（请确认已配置通义千问 API Key）'
+      } finally { recLoading.value = false }
+    }
+
+    const rebuildProfile = async () => {
+      profileLoading.value = true
+      try {
+        const res = await request.post('/agent/profile/rebuild')
+        message.success('画像重建完成，正在重新推荐...')
+        fetchRecommendations()
+      } catch (e) { message.error('画像重建失败，请稍后重试') }
+      finally { profileLoading.value = false }
+    }
+
+    const applyRec = async (jobId) => {
+      try {
+        await request.post('/student/applications', { jobId, resumeUrl: '', coverLetter: '' })
+        message.success('申请成功！')
+        fetchRecommendations()
+      } catch (e) { message.error('申请失败') }
+    }
 
     const goToJobs = () => router.push('/student/jobs')
     const goToApps = () => router.push('/student/applications')
@@ -93,7 +157,8 @@ export default {
       })
     }
 
-    return { activeTab, user, editProfileVisible, profileForm, openEditProfile, handleProfileUpdate, confirmDeleteAccount, goToJobs, goToApps, getDeptName }
+    return { activeTab, user, editProfileVisible, profileForm, openEditProfile, handleProfileUpdate, confirmDeleteAccount, goToJobs, goToApps, getDeptName,
+      recommendations, recLoading, recError, profileLoading, fetchRecommendations, rebuildProfile, applyRec }
   }
 }
 </script>
@@ -105,4 +170,16 @@ export default {
 .card h3 { margin-bottom: 16px; color: #333; font-size: 18px; font-weight: 600; }
 .card p { margin: 8px 0; color: #666; line-height: 1.5; }
 .actions { margin-top: 16px; display: flex; gap: 8px; }
+.ai-section { margin-top: 30px; }
+.ai-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.ai-header h3 { margin: 0; color: #333; font-size: 18px; }
+.rec-list { display: flex; flex-direction: column; gap: 12px; }
+.rec-card { display: flex; gap: 16px; background: linear-gradient(135deg, #f0f7ff, #fafafa); border: 1px solid #d6e8ff; border-radius: 10px; padding: 18px 20px; transition: all 0.3s ease; }
+.rec-card:hover { box-shadow: 0 4px 12px rgba(24, 144, 255, 0.15); transform: translateY(-2px); }
+.rec-rank { flex-shrink: 0; width: 52px; height: 52px; border-radius: 50%; background: #1890ff; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; }
+.rec-main h4 { margin: 0 0 6px 0; color: #333; font-size: 16px; }
+.rec-main p { margin: 4px 0; color: #666; font-size: 14px; line-height: 1.5; }
+.rec-reason { color: #1890ff !important; }
+.rec-tags { margin: 8px 0; }
+.loading { text-align: center; padding: 30px 20px; color: #666; font-size: 14px; }
 </style>
