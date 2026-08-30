@@ -50,6 +50,10 @@ public interface JobMapper {
     @Update("UPDATE job SET title = #{title}, description = #{description}, requirements = #{requirements}, salary = #{salary}, location = #{location}, quota = #{quota}, work_time = #{workTime}, contact_person = #{contactPerson}, contact_phone = #{contactPhone}, department_id = #{departmentId}, department_name = #{departmentName}, publisher_id = #{publisherId}, status = #{status}, remark = #{remark} WHERE id = #{id}")
     int update(Job job);
 
+    /** 仅更新状态与备注（Agent 审核采纳/定时任务用，避免全字段覆盖） */
+    @Update("UPDATE job SET status = #{status}, remark = #{remark} WHERE id = #{id}")
+    int updateStatus(@Param("id") Long id, @Param("status") Integer status, @Param("remark") String remark);
+
     @Delete("DELETE FROM job WHERE id = #{id}")
     int deleteById(Long id);
 }

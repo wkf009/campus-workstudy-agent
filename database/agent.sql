@@ -34,3 +34,19 @@ CREATE TABLE `recommendation_log` (
   KEY `idx_user` (`user_id`),
   KEY `idx_job` (`job_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='推荐记录表';
+
+-- 审核报告表（P4：AI 预审/匹配度评估报告，Human-in-the-Loop 依据）
+DROP TABLE IF EXISTS `audit_report`;
+CREATE TABLE `audit_report` (
+  `id`          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  `target_type` VARCHAR(20)  NOT NULL COMMENT '目标类型: job-岗位预审 / application-申请匹配',
+  `target_id`   BIGINT       NOT NULL COMMENT '目标ID（岗位ID或申请ID）',
+  `suggestion`  VARCHAR(20)  DEFAULT NULL COMMENT '岗位: PASS/SUPPLEMENT/REJECT；申请: 存匹配分',
+  `score`       DECIMAL(5,2) DEFAULT NULL COMMENT '质量分/匹配分 0-100',
+  `reasons`     JSON DEFAULT NULL COMMENT '理由/匹配点数组',
+  `suggestions` JSON DEFAULT NULL COMMENT '修改建议/差距点数组',
+  `risk_flags`  JSON DEFAULT NULL COMMENT '风险标记数组',
+  `agent_model` VARCHAR(50)  DEFAULT NULL COMMENT '使用的模型',
+  `created_at`  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '生成时间',
+  UNIQUE KEY `uk_target` (`target_type`, `target_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 审核报告表';

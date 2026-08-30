@@ -177,9 +177,10 @@ mvn test    # 28 个测试：认证 / 岗位服务 / 申请服务 / 用户服务
 |---|---|---|
 | P0 | 安全加固（默认拒绝/角色鉴权/越权修复/文件安全）、状态机 bug、通知闭环、服务端分页 | ✅ 完成 |
 | P1 | Spring AI Alibaba 接入（DashScope 对话 + Embedding，链路已验证） | ✅ 完成 |
-| P2 | Agent 1 智能求职推荐：画像构建 + 岗位向量化 + 多路召回 + LLM 精排 | 🚧 进行中 |
-| P3 | Agent 1 对话式求职助手：Function Calling + SSE 流式 | ⏳ 规划 |
-| P4 | Agent 2 智能审核：规则引擎 + 结构化报告 + Human-in-the-Loop | ⏳ 规划 |
+| P2 | Agent 1 智能求职推荐：画像构建 + 岗位向量化 + 多路召回 + LLM 精排 | ✅ 完成 |
+| P3 | Agent 1 对话式求职助手：Function Calling + SSE 流式（找岗→看详情→申请闭环） | ✅ 完成 |
+| P4 | Agent 2 智能审核：规则引擎 + LLM 结构化预审报告 + 申请匹配度 + Human-in-the-Loop 一键采纳 | ✅ 完成 |
+| E | 方向三（可选）：简历解析 / 岗位描述生成 / 运营智能体 / LLM 周报 | ⏳ 规划 |
 
 ---
 

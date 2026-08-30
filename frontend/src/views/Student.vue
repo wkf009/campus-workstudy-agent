@@ -9,13 +9,17 @@
       </ul>
     </div>
     <router-view />
+    <!-- AI 求职助手（Agent 1 对话形态） -->
+    <chat-assistant />
   </div>
 </template>
 
 <script>
 import { useRouter } from 'vue-router'
+import ChatAssistant from '../components/ChatAssistant.vue'
 export default {
   name: 'Student',
+  components: { ChatAssistant },
   setup() {
     const router = useRouter()
     const logout = () => { localStorage.removeItem('user'); localStorage.removeItem('token'); router.push('/') }
