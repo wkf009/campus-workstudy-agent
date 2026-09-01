@@ -11,6 +11,7 @@ import com.workstudy.entity.Application;
 import com.workstudy.entity.AuditReport;
 import com.workstudy.entity.Job;
 import com.workstudy.entity.StudentProfile;
+import com.workstudy.agent.notify.NotificationAgent;
 import com.workstudy.llm.ChatService;
 import com.workstudy.mapper.AgentTaskMapper;
 import com.workstudy.mapper.ApplicationMapper;
@@ -55,6 +56,8 @@ class CoordinatorAgentTest {
     private ChatService chatService;
     @Mock
     private LlmJsonParser jsonParser;
+    @Mock
+    private NotificationAgent notificationAgent;
 
     @InjectMocks
     private CoordinatorAgent coordinatorAgent;

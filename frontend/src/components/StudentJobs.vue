@@ -7,6 +7,17 @@
         <a-select-option v-for="dept in departments" :key="dept.id" :value="dept.id">{{ dept.name }}</a-select-option>
       </a-select>
     </div>
+    <!-- AI 自然语言搜索（Agent：QueryAgent） -->
+    <div class="ai-search-bar">
+      <a-input-search
+        v-model:value="aiQuery"
+        placeholder="🤖 AI 搜索：试试'晚上能做的兼职'、'图书馆附近的工作'"
+        @search="aiSearch"
+        :loading="aiSearching"
+        style="max-width:520px"
+      />
+    </div>
+    <p v-if="aiSummary" class="ai-summary">💡 AI 理解你的需求：{{ aiSummary }}</p>
     <p class="tip">排序：本部门岗位优先，薪资从高到低（服务端分页）</p>
     <div v-if="loading" class="loading">加载中...</div>
     <div v-else-if="jobs.length === 0" class="card"><p>暂无岗位信息</p></div>
@@ -57,6 +68,27 @@ export default {
     const pageSize = ref(10)
     const total = ref(0)
 
+    // AI 自然语言搜索（QueryAgent）
+    const aiQuery = ref('')
+    const aiSearching = ref(false)
+    const aiSummary = ref('')
+
+    const aiSearch = async () => {
+      if (!aiQuery.value.trim()) return
+      aiSearching.value = true
+      aiSummary.value = ''
+      try {
+        const res = await request.post('/agent/search', { query: aiQuery.value })
+        const d = res.data || {}
+        aiSummary.value = d.summary || ''
+        jobs.value = d.jobs || []
+        total.value = jobs.value.length
+        page.value = 1
+        message.success('AI 已为你找到 ' + jobs.value.length + ' 个岗位')
+      } catch (e) { message.error('AI 搜索失败，请确认已配置通义千问 API Key') }
+      finally { aiSearching.value = false }
+    }
+
     // 搜索/筛选/排序均在服务端完成（SQL + PageHelper 分页），前端只负责参数与渲染
     const fetchJobs = async () => {
       loading.value = true
@@ -93,14 +125,16 @@ export default {
 
     onMounted(() => { fetchJobs(); fetchDepartments() })
 
-    return { jobs, loading, keyword, filterDept, departments, page, pageSize, total, onSearch, onPageChange, applyJob }
+    return { jobs, loading, keyword, filterDept, departments, page, pageSize, total, aiQuery, aiSearching, aiSummary, aiSearch, onSearch, onPageChange, applyJob }
   }
 }
 </script>
 
 <style scoped>
 .dashboard h2 { margin-bottom: 8px; }
-.search-bar { display: flex; align-items: center; margin-bottom: 12px; }
+.search-bar { display: flex; align-items: center; margin-bottom: 8px; }
+.ai-search-bar { margin-bottom: 6px; }
+.ai-summary { color: #1890ff; font-size: 14px; margin-bottom: 4px; }
 .tip { color: #888; font-size: 14px; margin-bottom: 20px; }
 .card { background-color: #f9f9f9; padding: 24px; border-radius: 8px; border: 1px solid #e8e8e8; margin-bottom: 20px; transition: all 0.3s ease; }
 .card:hover { transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); background-color: #fff; }

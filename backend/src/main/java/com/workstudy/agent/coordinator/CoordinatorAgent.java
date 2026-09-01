@@ -7,6 +7,7 @@ import com.workstudy.agent.jobmatch.JobWriterAgent;
 import com.workstudy.agent.jobmatch.RecommendationService;
 import com.workstudy.agent.jobmatch.StudentProfileService;
 import com.workstudy.agent.jobmatch.dto.RecommendationVO;
+import com.workstudy.agent.notify.NotificationAgent;
 import com.workstudy.entity.AgentTask;
 import com.workstudy.entity.Application;
 import com.workstudy.entity.AuditReport;
@@ -56,6 +57,7 @@ public class CoordinatorAgent {
     private final NotificationService notificationService;
     private final ChatService chatService;
     private final LlmJsonParser jsonParser;
+    private final NotificationAgent notificationAgent;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public CoordinatorAgent(AgentTaskMapper taskMapper,
@@ -67,7 +69,8 @@ public class CoordinatorAgent {
                             RecommendationService recommendationService,
                             NotificationService notificationService,
                             ChatService chatService,
-                            LlmJsonParser jsonParser) {
+                            LlmJsonParser jsonParser,
+                            NotificationAgent notificationAgent) {
         this.taskMapper = taskMapper;
         this.jobAuditAgent = jobAuditAgent;
         this.jobWriterAgent = jobWriterAgent;
@@ -78,6 +81,7 @@ public class CoordinatorAgent {
         this.notificationService = notificationService;
         this.chatService = chatService;
         this.jsonParser = jsonParser;
+        this.notificationAgent = notificationAgent;
     }
 
     /**
@@ -165,9 +169,15 @@ public class CoordinatorAgent {
             String titles = alternatives.stream()
                     .map(RecommendationVO::getTitle)
                     .collect(Collectors.joining("、"));
-            notificationService.sendNotification(app.getUserId(), "AI 为你找到替代岗位",
-                    "你申请的《" + (rejectedJob != null ? rejectedJob.getTitle() : "岗位") + "》未通过。" +
-                            "AI 根据你的求职画像推荐了替代岗位：" + titles + "，可一键转投。",
+            String rejectedTitle = rejectedJob != null ? rejectedJob.getTitle() : "该岗位";
+            // NotificationAgent 个性化文案，失败回退模板
+            NotificationAgent.NotificationDraft draft = notificationAgent.generateRematch(
+                    "学生#" + app.getUserId(), rejectedTitle, titles);
+            notificationService.sendNotification(app.getUserId(),
+                    draft != null ? draft.getTitle() : "AI 为你找到替代岗位",
+                    draft != null ? draft.getContent()
+                            : ("你申请的《" + rejectedTitle + "》未通过。AI 根据你的求职画像推荐了替代岗位："
+                            + titles + "，可一键转投。"),
                     2, app.getJobId());
             completeTask(task, toJson(alternatives));
             log.info("申请 {} 被拒后撮合完成，为学生 {} 推荐 {} 个替代岗位",
@@ -213,9 +223,13 @@ public class CoordinatorAgent {
             String suggestion = LlmJsonParser.str(parsed, "suggestion");
 
             if (job.getPublisherId() != null && suggestion != null && !suggestion.isBlank()) {
-                notificationService.sendNotification(job.getPublisherId(), "岗位长期未招满，AI 给出调整建议",
-                        "《" + job.getTitle() + "》已招聘 " + daysOpen + " 天。AI 分析：" + nvl(issue)
-                                + "。建议：" + suggestion,
+                NotificationAgent.NotificationDraft draft = notificationAgent.generateLifecycle(
+                        job.getTitle(), nvl(issue), suggestion, (int) daysOpen);
+                notificationService.sendNotification(job.getPublisherId(),
+                        draft != null ? draft.getTitle() : "岗位长期未招满，AI 给出调整建议",
+                        draft != null ? draft.getContent()
+                                : ("《" + job.getTitle() + "》已招聘 " + daysOpen + " 天。AI 分析：" + nvl(issue)
+                                + "。建议：" + suggestion),
                         1, jobId);
             }
             completeTask(task, toJson(parsed));

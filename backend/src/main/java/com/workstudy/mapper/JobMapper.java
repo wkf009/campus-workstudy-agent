@@ -40,6 +40,15 @@ public interface JobMapper {
                                      @Param("keyword") String keyword,
                                      @Param("departmentId") Long departmentId);
 
+    /** AI 搜索（M5 QueryAgent）：关键词 + 地点过滤，Top 10 */
+    @Select("SELECT * FROM job WHERE status = 1 " +
+            "AND (#{keyword} IS NULL OR #{keyword} = '' OR title LIKE CONCAT('%', #{keyword}, '%') " +
+            "     OR description LIKE CONCAT('%', #{keyword}, '%') OR requirements LIKE CONCAT('%', #{keyword}, '%')) " +
+            "AND (#{location} IS NULL OR #{location} = '' OR location LIKE CONCAT('%', #{location}, '%')) " +
+            "ORDER BY salary DESC, create_time DESC LIMIT 10")
+    List<Job> selectPublishedByFilters(@Param("keyword") String keyword,
+                                       @Param("location") String location);
+
     @Select("SELECT * FROM job ORDER BY create_time DESC")
     List<Job> selectAll();
 

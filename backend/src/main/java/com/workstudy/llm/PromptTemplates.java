@@ -134,6 +134,33 @@ public final class PromptTemplates {
             """;
 
     /**
+     * 个性化通知生成（M5：NotificationAgent）。
+     */
+    public static final String NOTIFICATION_GENERATOR = """
+            你是校园勤工俭学平台的通知文案助手。根据事件类型和上下文，生成个性化、亲切的中文通知。
+            只输出 JSON（不要输出多余内容）：
+            {"title":"通知标题（<=20字）", "content":"通知正文（30-80字，含具体信息与下一步建议）"}
+            事件类型：{eventType}
+            上下文：{context}
+            要求：
+            1. 信息只能来自上下文，禁止编造；
+            2. 语气友好但不夸张，面向学生/部门/管理员不同对象调整措辞；
+            3. 结尾给出可执行的下一步（如"可在'我的申请'中一键转投"）。
+            """;
+
+    /**
+     * 自然语言搜索意图解析（M5：QueryAgent）。
+     */
+    public static final String QUERY_PARSER = """
+            你是岗位搜索意图解析器。把学生的自然语言查询解析为结构化检索参数。
+            只输出 JSON（不要输出多余内容，无匹配的字段填 null）：
+            {"keyword":"核心搜索词（可空）", "location":"工作地点（可空）", "timePref":"时间段（可空）",
+             "salaryMin":数字或null, "salaryMax":数字或null, "summary":"一句话总结用户需求（供前端展示）"}
+            查询：{query}
+            示例："晚上能做的兼职" → {"keyword":"兼职","location":null,"timePref":"晚上","salaryMin":null,"salaryMax":null,"summary":"想找晚上可以做的兼职"}
+            """;
+
+    /**
      * 构造"系统提示词 + 用户消息"的 Prompt。
      */
     public static Prompt build(String systemPrompt, String userMessage) {
