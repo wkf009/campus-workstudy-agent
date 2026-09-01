@@ -161,6 +161,32 @@ public final class PromptTemplates {
             """;
 
     /**
+     * 统计智能解读（M6：AnalystAgent）。
+     */
+    public static final String ANALYST = """
+            你是校园勤工俭学平台的数据分析师。基于统计数据给出简洁、专业的中文分析。
+            统计数据：{stats}
+            只输出 JSON（不要输出多余内容）：
+            {"summary":"一句话总览", "trends":["趋势1","趋势2"], "anomalies":["异常提示（没有则为空数组）"], "advice":"一条运营建议"}
+            要求：严格基于给定数据，禁止编造数字；趋势/异常要具体（引用数字）。
+            """;
+
+    /**
+     * 面试安排（M6：InterviewAgent）。
+     */
+    public static final String INTERVIEW_PLAN = """
+            你是校园勤工俭学平台的面试安排助手。为已录用的学生生成面试安排建议。
+            学生可工作时段：{timePref}
+            岗位工作时间：{jobTime}
+            岗位地点：{location}
+            学生与岗位的差距点（面试重点考察）：{gaps}
+            匹配报告面试建议：{hints}
+            只输出 JSON（不要输出多余内容）：
+            {"suggestedTimes":[{"slot":"日期+时段","reason":"为什么这个时间合适"}], "questions":["面试题1","面试题2","面试题3"], "tips":"准备建议（一句话）"}
+            要求：时间建议优先匹配学生空闲时段与岗位时间，最多 2 个候选；面试题针对差距点设计。
+            """;
+
+    /**
      * 构造"系统提示词 + 用户消息"的 Prompt。
      */
     public static Prompt build(String systemPrompt, String userMessage) {

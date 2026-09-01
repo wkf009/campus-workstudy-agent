@@ -73,6 +73,17 @@ public class NotificationAgent {
         return generate("JOB_LIFECYCLE_ADVICE", ctx);
     }
 
+    /** 便捷：生成面试安排建议通知 */
+    public NotificationDraft generateInterview(String jobTitle, String times, String tips) {
+        Map<String, Object> ctx = new HashMap<>();
+        ctx.put("对象", "学生");
+        ctx.put("场景", "申请已录用，AI 生成面试安排建议");
+        ctx.put("岗位", jobTitle);
+        ctx.put("建议面试时间", times);
+        ctx.put("准备建议", tips);
+        return generate("INTERVIEW_PLAN_NOTICE", ctx);
+    }
+
     /** 通知文案 DTO */
     public static class NotificationDraft {
         private final String title;

@@ -7,6 +7,7 @@ import com.workstudy.agent.jobmatch.JobWriterAgent;
 import com.workstudy.agent.jobmatch.RecommendationService;
 import com.workstudy.agent.jobmatch.StudentProfileService;
 import com.workstudy.agent.jobmatch.dto.RecommendationVO;
+import com.workstudy.agent.interview.InterviewAgent;
 import com.workstudy.agent.notify.NotificationAgent;
 import com.workstudy.entity.AgentTask;
 import com.workstudy.entity.Application;
@@ -58,6 +59,7 @@ public class CoordinatorAgent {
     private final ChatService chatService;
     private final LlmJsonParser jsonParser;
     private final NotificationAgent notificationAgent;
+    private final InterviewAgent interviewAgent;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public CoordinatorAgent(AgentTaskMapper taskMapper,
@@ -70,7 +72,8 @@ public class CoordinatorAgent {
                             NotificationService notificationService,
                             ChatService chatService,
                             LlmJsonParser jsonParser,
-                            NotificationAgent notificationAgent) {
+                            NotificationAgent notificationAgent,
+                            InterviewAgent interviewAgent) {
         this.taskMapper = taskMapper;
         this.jobAuditAgent = jobAuditAgent;
         this.jobWriterAgent = jobWriterAgent;
@@ -82,6 +85,7 @@ public class CoordinatorAgent {
         this.chatService = chatService;
         this.jsonParser = jsonParser;
         this.notificationAgent = notificationAgent;
+        this.interviewAgent = interviewAgent;
     }
 
     /**
@@ -142,8 +146,12 @@ public class CoordinatorAgent {
     }
 
     public void onApplicationProcessed(Long applicationId, int result) {
+        if (result == 1) {
+            planInterview(applicationId); // 录用 → 面试安排（M6）
+            return;
+        }
         if (result != 2) {
-            return; // 仅"拒绝"触发撮合（M3）；录用留待 M6 面试安排
+            return; // 仅拒绝触发撮合
         }
         AgentTask task = startTask(AgentTask.TASK_REMATCH, "application", applicationId,
                 "{\"event\":\"APPLICATION_REJECTED\",\"result\":" + result + "}");
@@ -237,6 +245,47 @@ public class CoordinatorAgent {
         } catch (Exception e) {
             failTask(task, e.getMessage());
             log.warn("岗位 {} 生命周期分析失败: {}", jobId, e.getMessage());
+        }
+    }
+
+    /**
+     * 录用 → 面试安排（M6）：InterviewAgent 生成时间建议+面试题 → 通知学生 → INTERVIEW_PLAN 留痕。
+     */
+    private void planInterview(Long applicationId) {
+        AgentTask task = startTask(AgentTask.TASK_INTERVIEW_PLAN, "application", applicationId,
+                "{\"event\":\"APPLICATION_ACCEPTED\"}");
+        if (task == null) {
+            return;
+        }
+        try {
+            Application app = applicationMapper.selectById(applicationId);
+            if (app == null || app.getUserId() == null) {
+                completeTask(task, "{\"skip\":\"申请不存在\"}");
+                return;
+            }
+            Job job = app.getJobId() != null ? jobMapper.selectById(app.getJobId()) : null;
+            InterviewAgent.InterviewPlan plan = interviewAgent.plan(applicationId);
+            if (plan == null || plan.getSuggestedTimes().isEmpty()) {
+                completeTask(task, "{\"skip\":\"无可用面试时间\"}");
+                return;
+            }
+            String times = plan.getSuggestedTimes().stream()
+                    .map(t -> t.getSlot() + "（" + t.getReason() + "）")
+                    .collect(Collectors.joining("；"));
+            String jobTitle = job != null ? job.getTitle() : "该岗位";
+            NotificationAgent.NotificationDraft draft = notificationAgent.generateInterview(
+                    jobTitle, times, nvl(plan.getTips()));
+            notificationService.sendNotification(app.getUserId(),
+                    draft != null ? draft.getTitle() : "面试安排建议",
+                    draft != null ? draft.getContent()
+                            : ("恭喜！你已通过《" + jobTitle + "》的申请。AI 建议面试时间：" + times
+                            + "；准备建议：" + nvl(plan.getTips())),
+                    2, applicationId);
+            completeTask(task, toJson(plan));
+            log.info("申请 {} 录用后面试安排生成完成", applicationId);
+        } catch (Exception e) {
+            failTask(task, e.getMessage());
+            log.warn("申请 {} 面试安排失败（不影响审核）: {}", applicationId, e.getMessage());
         }
     }
 

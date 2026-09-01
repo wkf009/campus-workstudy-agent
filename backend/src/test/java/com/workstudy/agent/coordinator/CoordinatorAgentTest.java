@@ -11,6 +11,7 @@ import com.workstudy.entity.Application;
 import com.workstudy.entity.AuditReport;
 import com.workstudy.entity.Job;
 import com.workstudy.entity.StudentProfile;
+import com.workstudy.agent.interview.InterviewAgent;
 import com.workstudy.agent.notify.NotificationAgent;
 import com.workstudy.llm.ChatService;
 import com.workstudy.mapper.AgentTaskMapper;
@@ -58,6 +59,8 @@ class CoordinatorAgentTest {
     private LlmJsonParser jsonParser;
     @Mock
     private NotificationAgent notificationAgent;
+    @Mock
+    private InterviewAgent interviewAgent;
 
     @InjectMocks
     private CoordinatorAgent coordinatorAgent;
@@ -170,12 +173,43 @@ class CoordinatorAgentTest {
     }
 
     @Test
-    void onApplicationAcceptedDoesNotRematch() {
-        // result=1 录用：不触发撮合（M6 面试安排）
+    void onApplicationAcceptedPlansInterview() {
+        // result=1 录用：走面试安排；app 不存在 → skip，不通知
+        when(taskMapper.selectLatest(anyString(), anyString(), any())).thenReturn(null);
+        when(taskMapper.insert(any())).thenReturn(1);
+        when(applicationMapper.selectById(5L)).thenReturn(null);
+        when(taskMapper.updateResult(any())).thenReturn(1);
+
         coordinatorAgent.onApplicationProcessed(5L, 1);
 
-        verify(taskMapper, never()).insert(any());
         verify(notificationService, never()).sendNotification(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void onApplicationAcceptedWithPlanNotifies() {
+        when(taskMapper.selectLatest(anyString(), anyString(), any())).thenReturn(null);
+        when(taskMapper.insert(any())).thenReturn(1);
+        Application app = new Application();
+        app.setId(5L);
+        app.setUserId(3L);
+        app.setJobId(1L);
+        when(applicationMapper.selectById(5L)).thenReturn(app);
+        Job job = new Job();
+        job.setId(1L);
+        job.setTitle("图书馆助理");
+        when(jobMapper.selectById(1L)).thenReturn(job);
+
+        InterviewAgent.InterviewPlan plan = new InterviewAgent.InterviewPlan();
+        InterviewAgent.InterviewPlan.TimeSlot slot = new InterviewAgent.InterviewPlan.TimeSlot();
+        slot.setSlot("周二 18:00");
+        slot.setReason("学生空闲且岗位在此时段");
+        plan.setSuggestedTimes(java.util.List.of(slot));
+        when(interviewAgent.plan(5L)).thenReturn(plan);
+        when(taskMapper.updateResult(any())).thenReturn(1);
+
+        coordinatorAgent.onApplicationProcessed(5L, 1);
+
+        verify(notificationService).sendNotification(eq(3L), anyString(), contains("面试"), eq(2), eq(5L));
     }
 
     @Test
