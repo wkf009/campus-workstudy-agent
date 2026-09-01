@@ -2,15 +2,26 @@ package com.workstudy.agent.coordinator;
 
 import com.workstudy.agent.audit.JobAuditAgent;
 import com.workstudy.agent.jobmatch.JobWriterAgent;
+import com.workstudy.agent.jobmatch.RecommendationService;
+import com.workstudy.agent.jobmatch.StudentProfileService;
+import com.workstudy.agent.jobmatch.dto.RecommendationVO;
 import com.workstudy.entity.AgentTask;
+import com.workstudy.entity.Application;
 import com.workstudy.entity.AuditReport;
+import com.workstudy.entity.Job;
+import com.workstudy.entity.StudentProfile;
 import com.workstudy.mapper.AgentTaskMapper;
+import com.workstudy.mapper.ApplicationMapper;
+import com.workstudy.mapper.JobMapper;
+import com.workstudy.service.NotificationService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -25,6 +36,16 @@ class CoordinatorAgentTest {
     private JobAuditAgent jobAuditAgent;
     @Mock
     private JobWriterAgent jobWriterAgent;
+    @Mock
+    private ApplicationMapper applicationMapper;
+    @Mock
+    private JobMapper jobMapper;
+    @Mock
+    private StudentProfileService profileService;
+    @Mock
+    private RecommendationService recommendationService;
+    @Mock
+    private NotificationService notificationService;
 
     @InjectMocks
     private CoordinatorAgent coordinatorAgent;
@@ -109,5 +130,39 @@ class CoordinatorAgentTest {
 
         // 最多修订 2 轮（防死循环），然后转人工
         verify(jobWriterAgent, times(2)).reviseJob(any(), any());
+    }
+
+    @Test
+    void onApplicationRejectedTriggersRematch() {
+        Application app = new Application();
+        app.setId(5L);
+        app.setUserId(3L);
+        app.setJobId(1L);
+        when(taskMapper.selectLatest(anyString(), anyString(), any())).thenReturn(null);
+        when(taskMapper.insert(any())).thenReturn(1);
+        when(applicationMapper.selectById(5L)).thenReturn(app);
+        when(jobMapper.selectById(1L)).thenReturn(new Job());
+        when(profileService.getOrBuildProfile(3L)).thenReturn(new StudentProfile());
+        RecommendationVO vo = new RecommendationVO();
+        vo.setJobId(2L);
+        vo.setTitle("图书馆助理");
+        when(recommendationService.recommend(3L, 2)).thenReturn(List.of(vo));
+        when(taskMapper.updateResult(any())).thenReturn(1);
+
+        coordinatorAgent.onApplicationProcessed(5L, 2);
+
+        verify(notificationService).sendNotification(eq(3L), contains("替代岗位"), anyString(), eq(2), any());
+        ArgumentCaptor<AgentTask> captor = ArgumentCaptor.forClass(AgentTask.class);
+        verify(taskMapper).updateResult(captor.capture());
+        assertEquals(AgentTask.STATUS_SUCCESS, captor.getValue().getStatus());
+    }
+
+    @Test
+    void onApplicationAcceptedDoesNotRematch() {
+        // result=1 录用：不触发撮合（M6 面试安排）
+        coordinatorAgent.onApplicationProcessed(5L, 1);
+
+        verify(taskMapper, never()).insert(any());
+        verify(notificationService, never()).sendNotification(any(), any(), any(), any(), any());
     }
 }

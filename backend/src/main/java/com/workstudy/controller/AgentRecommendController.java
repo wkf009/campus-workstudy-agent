@@ -1,5 +1,7 @@
 package com.workstudy.controller;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.workstudy.agent.jobmatch.JobVectorService;
 import com.workstudy.agent.jobmatch.RecommendationService;
 import com.workstudy.agent.jobmatch.StudentProfileService;
@@ -7,7 +9,9 @@ import com.workstudy.agent.jobmatch.dto.RecommendationVO;
 import com.workstudy.aspect.LogOperation;
 import com.workstudy.aspect.RequireRole;
 import com.workstudy.common.Result;
+import com.workstudy.entity.AgentTask;
 import com.workstudy.entity.StudentProfile;
+import com.workstudy.mapper.AgentTaskMapper;
 import com.workstudy.utils.JwtUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
@@ -29,13 +33,17 @@ public class AgentRecommendController {
     private final RecommendationService recommendationService;
     private final StudentProfileService profileService;
     private final JobVectorService jobVectorService;
+    private final AgentTaskMapper agentTaskMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public AgentRecommendController(RecommendationService recommendationService,
                                     StudentProfileService profileService,
-                                    JobVectorService jobVectorService) {
+                                    JobVectorService jobVectorService,
+                                    AgentTaskMapper agentTaskMapper) {
         this.recommendationService = recommendationService;
         this.profileService = profileService;
         this.jobVectorService = jobVectorService;
+        this.agentTaskMapper = agentTaskMapper;
     }
 
     /**
@@ -72,5 +80,22 @@ public class AgentRecommendController {
         Map<String, Object> data = new HashMap<>();
         data.put("message", "岗位向量索引重建完成");
         return Result.success(data);
+    }
+
+    /**
+     * 查询某次申请被拒后的 AI 替代推荐（场景 2：撮合结果，供一键转投）。
+     */
+    @GetMapping("/rematch/{applicationId}")
+    public Result<List<RecommendationVO>> getRematch(@PathVariable Long applicationId) {
+        AgentTask task = agentTaskMapper.selectLatest(AgentTask.TASK_REMATCH, "application", applicationId);
+        if (task == null || task.getResultJson() == null || task.getResultJson().isBlank()) {
+            return Result.success(List.of());
+        }
+        try {
+            return Result.success(objectMapper.readValue(task.getResultJson(),
+                    new TypeReference<List<RecommendationVO>>() {}));
+        } catch (Exception e) {
+            return Result.success(List.of());
+        }
     }
 }

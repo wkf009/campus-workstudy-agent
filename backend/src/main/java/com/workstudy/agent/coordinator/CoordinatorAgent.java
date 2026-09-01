@@ -3,15 +3,27 @@ package com.workstudy.agent.coordinator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.workstudy.agent.audit.JobAuditAgent;
 import com.workstudy.agent.jobmatch.JobWriterAgent;
+import com.workstudy.agent.jobmatch.RecommendationService;
+import com.workstudy.agent.jobmatch.StudentProfileService;
+import com.workstudy.agent.jobmatch.dto.RecommendationVO;
 import com.workstudy.entity.AgentTask;
+import com.workstudy.entity.Application;
 import com.workstudy.entity.AuditReport;
+import com.workstudy.entity.Job;
+import com.workstudy.entity.StudentProfile;
 import com.workstudy.mapper.AgentTaskMapper;
+import com.workstudy.mapper.ApplicationMapper;
+import com.workstudy.mapper.JobMapper;
+import com.workstudy.service.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * CoordinatorAgent（多 Agent 协作的协调者）：
@@ -31,14 +43,29 @@ public class CoordinatorAgent {
     private final AgentTaskMapper taskMapper;
     private final JobAuditAgent jobAuditAgent;
     private final JobWriterAgent jobWriterAgent;
+    private final ApplicationMapper applicationMapper;
+    private final JobMapper jobMapper;
+    private final StudentProfileService profileService;
+    private final RecommendationService recommendationService;
+    private final NotificationService notificationService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public CoordinatorAgent(AgentTaskMapper taskMapper,
                             JobAuditAgent jobAuditAgent,
-                            JobWriterAgent jobWriterAgent) {
+                            JobWriterAgent jobWriterAgent,
+                            ApplicationMapper applicationMapper,
+                            JobMapper jobMapper,
+                            StudentProfileService profileService,
+                            RecommendationService recommendationService,
+                            NotificationService notificationService) {
         this.taskMapper = taskMapper;
         this.jobAuditAgent = jobAuditAgent;
         this.jobWriterAgent = jobWriterAgent;
+        this.applicationMapper = applicationMapper;
+        this.jobMapper = jobMapper;
+        this.profileService = profileService;
+        this.recommendationService = recommendationService;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -88,11 +115,55 @@ public class CoordinatorAgent {
 
     /**
      * 事件：申请被处理（场景 2/6 的触发点）。
-     * result=1 录用 → M6 面试安排；result=2 拒绝 → M3 替代推荐。
-     * （M3/M6 填充具体协作，M1 先留钩子）
+     * result=2 拒绝 → 撮合：根据学生画像推荐替代岗位并通知（M3）；
+     * result=1 录用 → 面试安排（M6 填充）。
+     * 异步执行，异常隔离，不影响审核事务。
      */
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onApplicationProcessedEvent(ApplicationProcessedEvent event) {
+        onApplicationProcessed(event.getApplicationId(), event.getResult());
+    }
+
     public void onApplicationProcessed(Long applicationId, int result) {
-        log.debug("申请 {} 处理结果 {}，等待 M3/M6 协作接入", applicationId, result);
+        if (result != 2) {
+            return; // 仅"拒绝"触发撮合（M3）；录用留待 M6 面试安排
+        }
+        AgentTask task = startTask(AgentTask.TASK_REMATCH, "application", applicationId,
+                "{\"event\":\"APPLICATION_REJECTED\",\"result\":" + result + "}");
+        if (task == null) {
+            return;
+        }
+        try {
+            Application app = applicationMapper.selectById(applicationId);
+            if (app == null || app.getUserId() == null) {
+                completeTask(task, "{\"skip\":\"申请不存在\"}");
+                return;
+            }
+            Job rejectedJob = app.getJobId() != null ? jobMapper.selectById(app.getJobId()) : null;
+            // 学生画像（已有则复用；推荐内部自动懒加载画像与向量索引）
+            StudentProfile profile = profileService.getOrBuildProfile(app.getUserId());
+            List<RecommendationVO> alternatives = recommendationService.recommend(app.getUserId(), 2);
+
+            if (alternatives.isEmpty()) {
+                completeTask(task, "{\"recommendations\":[]}");
+                log.info("学生 {} 被拒后无替代岗位可推荐", app.getUserId());
+                return;
+            }
+            String titles = alternatives.stream()
+                    .map(RecommendationVO::getTitle)
+                    .collect(Collectors.joining("、"));
+            notificationService.sendNotification(app.getUserId(), "AI 为你找到替代岗位",
+                    "你申请的《" + (rejectedJob != null ? rejectedJob.getTitle() : "岗位") + "》未通过。" +
+                            "AI 根据你的求职画像推荐了替代岗位：" + titles + "，可一键转投。",
+                    2, app.getJobId());
+            completeTask(task, toJson(alternatives));
+            log.info("申请 {} 被拒后撮合完成，为学生 {} 推荐 {} 个替代岗位",
+                    applicationId, app.getUserId(), alternatives.size());
+        } catch (Exception e) {
+            failTask(task, e.getMessage());
+            log.warn("申请 {} 撮合失败（不影响审核）: {}", applicationId, e.getMessage());
+        }
     }
 
     // ==================== 任务管理（留痕/幂等/防呆） ====================

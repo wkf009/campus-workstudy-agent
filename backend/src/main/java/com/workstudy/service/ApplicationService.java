@@ -1,11 +1,13 @@
 package com.workstudy.service;
 
+import com.workstudy.agent.coordinator.ApplicationProcessedEvent;
 import com.workstudy.entity.Application;
 import com.workstudy.entity.Job;
 import com.workstudy.vo.ApplicationVO;
 import com.workstudy.mapper.ApplicationMapper;
 import com.workstudy.mapper.JobMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -21,6 +23,9 @@ public class ApplicationService {
 
     @Autowired
     private NotificationService notificationService;
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
     
     public List<Application> getApplicationsByStudent(Long studentId) {
         return applicationMapper.selectByStudentId(studentId);
@@ -78,6 +83,11 @@ public class ApplicationService {
         return application;
     }
     
+    /**
+     * 审核申请：更新状态 + 通知 + 配额检查 + 发布撮合/面试事件。
+     * 注意必须 @Transactional：@TransactionalEventListener(AFTER_COMMIT) 只在事务提交后触发。
+     */
+    @org.springframework.transaction.annotation.Transactional
     public Application processApplication(Long applicationId, Integer result, String remark, Long auditorId) {
         Application application = applicationMapper.selectById(applicationId);
         if (application == null) {
@@ -105,7 +115,11 @@ public class ApplicationService {
         if (result == 1) {
             checkAndMarkJobAsFull(application.getJobId());
         }
-        
+
+        // 多 Agent 协作：发布申请处理事件，事务提交后由 CoordinatorAgent 异步处理
+        // （被拒 → 撮合推荐替代岗位 M3；录用 → 面试安排 M6）
+        eventPublisher.publishEvent(new ApplicationProcessedEvent(applicationId, result));
+
         return application;
     }
     

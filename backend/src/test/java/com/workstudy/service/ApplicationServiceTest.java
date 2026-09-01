@@ -27,6 +27,9 @@ class ApplicationServiceTest {
     @Mock
     private NotificationService notificationService;
 
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
     @InjectMocks
     private ApplicationService applicationService;
 
