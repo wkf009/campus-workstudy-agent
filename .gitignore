@@ -31,6 +31,9 @@ uploads/
 .env.local
 application-local.yml
 
+# ===== 演示脚本运行时产物（PID/日志/token） =====
+scripts/.runtime/
+
 # ===== 系统文件 =====
 Thumbs.db
 .DS_Store
