@@ -1,6 +1,15 @@
 <template>
   <div class="submit-job-form">
     <h2>提交新岗位</h2>
+    <!-- AI 生成岗位初稿（Agent：JobWriterAgent） -->
+    <div class="ai-writer">
+      <h3>🤖 AI 生成岗位初稿（可选）</h3>
+      <div class="ai-writer-row">
+        <a-input v-model:value="aiKeywords" placeholder="输入要点，如：机房值班，晚上，计算机学院（AI 自动生成标题/描述/要求/时间/建议薪资）" @pressEnter="generateByAI" />
+        <a-button type="primary" @click="generateByAI" :loading="aiLoading">AI 生成</a-button>
+      </div>
+      <p class="ai-tip">生成后请核对内容再提交；提交后 AI 会自动预审，SUPPLEMENT 时自动修订。</p>
+    </div>
     <a-form :model="formState" @finish="handleSubmit" @finishFailed="handleFinishFailed">
       <a-form-item label="岗位标题：" name="title" :rules="[{required:true,message:'请输入岗位标题'}]"><a-input v-model:value="formState.title" placeholder="请输入岗位标题" /></a-form-item>
       <a-form-item label="详细描述：" name="description" :rules="[{required:true,message:'请输入岗位详细描述'}]"><a-textarea v-model:value="formState.description" placeholder="请输入岗位详细描述" rows="4" /></a-form-item>
@@ -28,6 +37,26 @@ export default {
   setup() {
     const formState = ref({ title:'', description:'', requirements:'', salary:'', location:'', quota:1, workTime:'', contactPerson:'', contactPhone:'', departmentId:'', departmentName:'' })
 
+    // AI 生成岗位初稿（JobWriterAgent）
+    const aiKeywords = ref('')
+    const aiLoading = ref(false)
+
+    const generateByAI = async () => {
+      if (!aiKeywords.value.trim()) { message.warning('请输入岗位要点'); return }
+      aiLoading.value = true
+      try {
+        const res = await request.post('/agent/write-job', { keywords: aiKeywords.value })
+        const d = res.data || {}
+        formState.value.title = d.title || formState.value.title
+        formState.value.description = d.description || formState.value.description
+        formState.value.requirements = d.requirements || formState.value.requirements
+        formState.value.workTime = d.workTime || formState.value.workTime
+        if (d.salarySuggest) formState.value.salary = String(d.salarySuggest)
+        message.success('AI 已生成岗位初稿，请核对后提交')
+      } catch (e) { message.error('AI 生成失败，请确认已配置通义千问 API Key') }
+      finally { aiLoading.value = false }
+    }
+
     const handleSubmit = async (values) => {
       try {
         await request.post('/department/jobs', { ...values })
@@ -50,7 +79,7 @@ export default {
       }
     })
 
-    return { formState, handleSubmit, handleFinishFailed }
+    return { formState, aiKeywords, aiLoading, generateByAI, handleSubmit, handleFinishFailed }
   }
 }
 </script>
@@ -64,4 +93,10 @@ export default {
 .submit-job-form :deep(.ant-textarea) { border-radius:4px!important; font-size:14px!important; }
 .submit-job-form :deep(.ant-btn) { height:40px!important; font-size:16px!important; width:100%!important; border-radius:4px!important; }
 .submit-job-form :deep(.ant-form-item:last-child) { margin-left:112px!important; }
+.ai-writer { background: linear-gradient(135deg, #f0f7ff, #fafafa); border: 1px solid #d6e8ff; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px; }
+.ai-writer h3 { margin: 0 0 10px 0; color: #1890ff; font-size: 15px; }
+.ai-writer-row { display: flex; gap: 8px; }
+.ai-writer-row .ant-input { flex: 1; }
+.ai-writer-row .ant-btn { width: auto!important; flex-shrink: 0; }
+.ai-tip { color: #888; font-size: 12px; margin: 8px 0 0 0; }
 </style>

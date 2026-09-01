@@ -1,6 +1,6 @@
 package com.workstudy.service;
 
-import com.workstudy.agent.coordinator.CoordinatorAgent;
+import com.workstudy.agent.coordinator.JobSubmittedEvent;
 import com.workstudy.entity.Job;
 import com.workstudy.mapper.JobMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,6 +9,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 
@@ -25,7 +26,7 @@ class JobServiceTest {
     private NotificationService notificationService;
 
     @Mock
-    private CoordinatorAgent coordinatorAgent;
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private JobService jobService;

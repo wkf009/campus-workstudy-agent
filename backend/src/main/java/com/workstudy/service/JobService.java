@@ -2,11 +2,12 @@ package com.workstudy.service;
 
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
-import com.workstudy.agent.coordinator.CoordinatorAgent;
+import com.workstudy.agent.coordinator.JobSubmittedEvent;
 import com.workstudy.common.PageResult;
 import com.workstudy.entity.Job;
 import com.workstudy.mapper.JobMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,7 +23,7 @@ public class JobService {
     private NotificationService notificationService;
 
     @Autowired
-    private CoordinatorAgent coordinatorAgent;
+    private ApplicationEventPublisher eventPublisher;
 
     public Job selectById(Long id) {
         return jobMapper.selectById(id);
@@ -96,8 +97,9 @@ public class JobService {
     public Job submitJob(Job job) {
         job.setStatus(0);
         jobMapper.insert(job);
-        // 多 Agent 协作：提交后自动触发 AI 预审（CoordinatorAgent 内部隔离异常，不影响本事务）
-        coordinatorAgent.onJobSubmitted(job.getId());
+        // 多 Agent 协作：发布事件，事务提交后由 CoordinatorAgent 异步执行"预审-修订"协作流
+        // （异步化避免 LLM 调用阻塞发布接口，见 docs/踩坑记录.md K-09）
+        eventPublisher.publishEvent(new JobSubmittedEvent(job.getId()));
         return job;
     }
 

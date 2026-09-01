@@ -1,6 +1,7 @@
 package com.workstudy.agent.coordinator;
 
 import com.workstudy.agent.audit.JobAuditAgent;
+import com.workstudy.agent.jobmatch.JobWriterAgent;
 import com.workstudy.entity.AgentTask;
 import com.workstudy.entity.AuditReport;
 import com.workstudy.mapper.AgentTaskMapper;
@@ -22,6 +23,8 @@ class CoordinatorAgentTest {
     private AgentTaskMapper taskMapper;
     @Mock
     private JobAuditAgent jobAuditAgent;
+    @Mock
+    private JobWriterAgent jobWriterAgent;
 
     @InjectMocks
     private CoordinatorAgent coordinatorAgent;
@@ -70,5 +73,41 @@ class CoordinatorAgentTest {
         verify(taskMapper).updateResult(captor.capture());
         assertEquals(AgentTask.STATUS_FAILED, captor.getValue().getStatus());
         assertNotNull(captor.getValue().getErrorMsg());
+    }
+
+    @Test
+    void onJobSubmittedRevisesSupplementRound() {
+        when(taskMapper.selectLatest(anyString(), anyString(), any())).thenReturn(null);
+        when(taskMapper.insert(any())).thenReturn(1);
+
+        // 第一轮 SUPPLEMENT → 修订 → 第二轮 PASS
+        AuditReport supplement = new AuditReport();
+        supplement.setSuggestion("SUPPLEMENT");
+        AuditReport pass = new AuditReport();
+        pass.setSuggestion("PASS");
+        when(jobAuditAgent.generateJobReport(1L)).thenReturn(supplement, pass);
+        when(taskMapper.updateResult(any())).thenReturn(1);
+
+        coordinatorAgent.onJobSubmitted(1L);
+
+        verify(jobWriterAgent).reviseJob(eq(1L), any(AuditReport.class)); // 自动修订 1 次
+        verify(jobAuditAgent, times(2)).generateJobReport(1L);           // 预审 2 次
+    }
+
+    @Test
+    void onJobSubmittedStopsAfterMaxRounds() {
+        when(taskMapper.selectLatest(anyString(), anyString(), any())).thenReturn(null);
+        when(taskMapper.insert(any())).thenReturn(1);
+
+        AuditReport supplement = new AuditReport();
+        supplement.setSuggestion("SUPPLEMENT");
+        // 一直 SUPPLEMENT
+        when(jobAuditAgent.generateJobReport(1L)).thenReturn(supplement);
+        when(taskMapper.updateResult(any())).thenReturn(1);
+
+        coordinatorAgent.onJobSubmitted(1L);
+
+        // 最多修订 2 轮（防死循环），然后转人工
+        verify(jobWriterAgent, times(2)).reviseJob(any(), any());
     }
 }

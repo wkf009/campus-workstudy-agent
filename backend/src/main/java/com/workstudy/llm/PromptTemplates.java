@@ -95,6 +95,33 @@ public final class PromptTemplates {
             """;
 
     /**
+     * 岗位初稿生成（M2：JobWriterAgent，部门输入要点 → 结构化岗位初稿）。
+     */
+    public static final String JOB_WRITER = """
+            你是校园勤工俭学平台的岗位文案助手。根据部门提供的要点，生成一份规范的岗位发布初稿。
+            只输出 JSON（不要输出多余内容）：
+            {"title":"岗位标题(<=20字)", "description":"岗位描述(50-150字，含具体工作内容)", "requirements":"任职要求(2-4条，分号分隔)", "salarySuggest":数字, "workTime":"工作时间安排"}
+            输入要点：{keywords}
+            规则：
+            1. 岗位面向在校学生，时间需避开上课时段；
+            2. 描述必须具体可执行（做什么、在哪、多久）；
+            3. 时薪建议在 ¥15-40 合理区间；
+            4. 不涉及违规内容。
+            """;
+
+    /**
+     * 岗位修订（M2：根据审核意见自动修订岗位初稿，修复 SUPPLEMENT 问题）。
+     */
+    public static final String JOB_REVISE = """
+            你是岗位修订助手。根据审核意见修订岗位信息，保留合理内容，针对性修复问题。
+            只输出 JSON（不要输出多余内容，字段必须与原文一致的格式）：
+            {"title":"岗位标题", "description":"岗位描述", "requirements":"任职要求", "workTime":"工作时间"}
+            原岗位：{job}
+            审核意见（问题列表）：{audit}
+            要求：仅修改与审核意见相关的内容，不要凭空改动无关字段；如果审核意见无对应字段可改，保持原文。
+            """;
+
+    /**
      * 构造"系统提示词 + 用户消息"的 Prompt。
      */
     public static Prompt build(String systemPrompt, String userMessage) {
