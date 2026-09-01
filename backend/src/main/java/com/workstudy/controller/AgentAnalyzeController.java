@@ -3,6 +3,7 @@ package com.workstudy.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.workstudy.agent.analyst.AnalystAgent;
+import com.workstudy.agent.eval.AgentEvalService;
 import com.workstudy.aspect.LogOperation;
 import com.workstudy.common.Result;
 import com.workstudy.entity.AgentTask;
@@ -16,9 +17,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Agent 6 分析/面试接口（M6 场景 6）：
+ * Agent 6 分析/面试/评测接口（M6/M7）：
  * POST /api/agent/analyze            —— 统计看板 AI 解读（AnalystAgent）
- * GET  /api/agent/interview/{appId}  —— 查询录用申请的 AI 面试安排建议（InterviewAgent 结果）
+ * GET  /api/agent/interview/{appId}  —— 查询录用申请的 AI 面试安排建议
+ * GET  /api/agent/eval/metrics       —— Agent 推荐效果评测指标（M7）
  */
 @RestController
 @RequestMapping("/api/agent")
@@ -29,18 +31,21 @@ public class AgentAnalyzeController {
     private final JobMapper jobMapper;
     private final ApplicationMapper applicationMapper;
     private final AgentTaskMapper agentTaskMapper;
+    private final AgentEvalService agentEvalService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public AgentAnalyzeController(AnalystAgent analystAgent,
                                   UserMapper userMapper,
                                   JobMapper jobMapper,
                                   ApplicationMapper applicationMapper,
-                                  AgentTaskMapper agentTaskMapper) {
+                                  AgentTaskMapper agentTaskMapper,
+                                  AgentEvalService agentEvalService) {
         this.analystAgent = analystAgent;
         this.userMapper = userMapper;
         this.jobMapper = jobMapper;
         this.applicationMapper = applicationMapper;
         this.agentTaskMapper = agentTaskMapper;
+        this.agentEvalService = agentEvalService;
     }
 
     /**
@@ -79,5 +84,15 @@ public class AgentAnalyzeController {
         } catch (Exception e) {
             return Result.success(Map.of());
         }
+    }
+
+    /**
+     * Agent 效果评测指标（M7）：基于 recommendation_log 留痕的推荐效果量化。
+     */
+    @LogOperation
+    @com.workstudy.aspect.RequireRole({3})
+    @GetMapping("/eval/metrics")
+    public Result<Map<String, Object>> evalMetrics() {
+        return Result.success(agentEvalService.computeMetrics());
     }
 }

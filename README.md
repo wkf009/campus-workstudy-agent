@@ -180,7 +180,16 @@ mvn test    # 28 个测试：认证 / 岗位服务 / 申请服务 / 用户服务
 | P2 | Agent 1 智能求职推荐：画像构建 + 岗位向量化 + 多路召回 + LLM 精排 | ✅ 完成 |
 | P3 | Agent 1 对话式求职助手：Function Calling + SSE 流式（找岗→看详情→申请闭环） | ✅ 完成 |
 | P4 | Agent 2 智能审核：规则引擎 + LLM 结构化预审报告 + 申请匹配度 + Human-in-the-Loop 一键采纳 | ✅ 完成 |
-| E | 方向三（可选）：简历解析 / 岗位描述生成 / 运营智能体 / LLM 周报 | ⏳ 规划 |
+| M1 | 多 Agent 协作骨架：CoordinatorAgent + AgentTask 任务留痕（发布即自动预审） | ✅ 完成 |
+| M2 | 场景①岗位发布协作流：AI 生成初稿 → 预审 → SUPPLEMENT 自动修订循环（异步化） | ✅ 完成 |
+| M3 | 场景②申请撮合：被拒 → AI 替代推荐 → 一键转投 | ✅ 完成 |
+| M4 | 场景③生命周期协作：定时扫描 → AI 原因诊断 → 调整建议通知 | ✅ 完成 |
+| M5 | 场景④⑤NotificationAgent 个性化通知 + QueryAgent 自然语言搜索 | ✅ 完成 |
+| M6 | 场景⑥AnalystAgent 统计解读 + InterviewAgent 面试安排 | ✅ 完成 |
+| M7 | AgentEval 评测指标 + 前端 AI 可视化（Agent 占比 ~44%） | ✅ 完成 |
+
+> **多 Agent 协作架构**：1 个协调者（CoordinatorAgent）+ 8 个领域 Agent（JobWriter/Audit/JobSeeker/Screener/Interview/Query/Notification/Analyst），
+> 事件驱动（AFTER_COMMIT + @Async）+ 黑板模式（DB 共享状态）+ 任务留痕（agent_task）+ 修订限轮防呆，Agent 代码占比约 44%。详见 [多 Agent 协作调研与设计](docs/多Agent协作调研与设计.md)。
 
 ---
 

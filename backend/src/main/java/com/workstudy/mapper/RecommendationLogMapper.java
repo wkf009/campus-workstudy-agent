@@ -15,4 +15,7 @@ public interface RecommendationLogMapper {
 
     @Select("SELECT * FROM recommendation_log WHERE user_id = #{userId} ORDER BY created_at DESC, score DESC")
     List<RecommendationLog> selectByUserId(Long userId);
+
+    @Select("SELECT * FROM recommendation_log ORDER BY id DESC LIMIT 1000")
+    List<RecommendationLog> selectAll();
 }

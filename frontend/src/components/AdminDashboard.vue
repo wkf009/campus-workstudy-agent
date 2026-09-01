@@ -20,6 +20,21 @@
         <div class="charts-row">
           <div ref="chartRef" style="width:100%;height:300px"></div>
         </div>
+
+        <!-- AI 运营分析（Agent：AnalystAgent） -->
+        <div class="ai-analysis">
+          <div class="ai-analysis-header">
+            <h3>🤖 AI 运营分析</h3>
+            <a-button size="small" @click="runAnalysis" :loading="analyzing">生成 AI 分析</a-button>
+          </div>
+          <div v-if="analysis && analysis.summary" class="analysis-content">
+            <p class="analysis-summary">{{ analysis.summary }}</p>
+            <p v-if="analysis.trends && analysis.trends.length"><strong>趋势：</strong>{{ analysis.trends.join('；') }}</p>
+            <p v-if="analysis.anomalies && analysis.anomalies.length" class="analysis-anomaly"><strong>异常提示：</strong>{{ analysis.anomalies.join('；') }}</p>
+            <p v-if="analysis.advice" class="analysis-advice"><strong>运营建议：</strong>{{ analysis.advice }}</p>
+          </div>
+          <div v-else-if="!analyzing" class="analysis-empty">点击"生成 AI 分析"，由大模型解读当前运营数据</div>
+        </div>
       </a-tab-pane>
       <a-tab-pane key="jobs" tab="岗位管理"><admin-jobs /></a-tab-pane>
       <a-tab-pane key="users" tab="用户管理"><admin-users /></a-tab-pane>
@@ -33,6 +48,7 @@ import AdminJobs from './AdminJobs.vue'
 import AdminUsers from './AdminUsers.vue'
 import request from '../utils/request.js'
 import * as echarts from 'echarts'
+import { message } from 'ant-design-vue'
 
 export default {
   name: 'AdminDashboard',
@@ -68,7 +84,20 @@ export default {
       } catch (e) {}
     })
 
-    return { activeTab, chartRef, user, stats }
+    // AI 运营分析（AnalystAgent）
+    const analysis = ref(null)
+    const analyzing = ref(false)
+
+    const runAnalysis = async () => {
+      analyzing.value = true
+      try {
+        const res = await request.post('/agent/analyze')
+        analysis.value = res.data || {}
+      } catch (e) { message.error('AI 分析失败，请确认已配置通义千问 API Key') }
+      finally { analyzing.value = false }
+    }
+
+    return { activeTab, chartRef, user, stats, analysis, analyzing, runAnalysis }
   }
 }
 </script>
@@ -79,5 +108,13 @@ export default {
 .card { background-color: #f9f9f9; padding: 24px; border-radius: 8px; border: 1px solid #e8e8e8; transition: all 0.3s ease; }
 .card:hover { transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); background-color: #fff; }
 .card h3 { margin-bottom: 16px; color: #333; font-size: 18px; font-weight: 600; }
+.ai-analysis { margin-top: 24px; background: linear-gradient(135deg, #f6ffed, #fafafa); border: 1px solid #b7eb8f; border-radius: 8px; padding: 18px 20px; }
+.ai-analysis-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.ai-analysis-header h3 { margin: 0; color: #333; font-size: 17px; }
+.analysis-content p { margin: 8px 0; color: #555; line-height: 1.7; }
+.analysis-summary { font-size: 15px; color: #333 !important; font-weight: 500; }
+.analysis-anomaly { color: #cf1322 !important; }
+.analysis-advice { color: #1890ff !important; }
+.analysis-empty { color: #999; font-size: 14px; }
 .card p { margin: 8px 0; color: #666; line-height: 1.5; }
 </style>
