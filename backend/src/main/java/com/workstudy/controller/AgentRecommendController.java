@@ -34,16 +34,25 @@ public class AgentRecommendController {
     private final StudentProfileService profileService;
     private final JobVectorService jobVectorService;
     private final AgentTaskMapper agentTaskMapper;
+    private final com.workstudy.agent.coordinator.CoordinatorAgent coordinatorAgent;
+    private final com.workstudy.mapper.JobMapper jobMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @org.springframework.beans.factory.annotation.Value("${agent.lifecycle-days:20}")
+    private int lifecycleDays;
 
     public AgentRecommendController(RecommendationService recommendationService,
                                     StudentProfileService profileService,
                                     JobVectorService jobVectorService,
-                                    AgentTaskMapper agentTaskMapper) {
+                                    AgentTaskMapper agentTaskMapper,
+                                    com.workstudy.agent.coordinator.CoordinatorAgent coordinatorAgent,
+                                    com.workstudy.mapper.JobMapper jobMapper) {
         this.recommendationService = recommendationService;
         this.profileService = profileService;
         this.jobVectorService = jobVectorService;
         this.agentTaskMapper = agentTaskMapper;
+        this.coordinatorAgent = coordinatorAgent;
+        this.jobMapper = jobMapper;
     }
 
     /**
@@ -97,5 +106,44 @@ public class AgentRecommendController {
         } catch (Exception e) {
             return Result.success(List.of());
         }
+    }
+
+    /**
+     * 查询岗位生命周期分析建议（场景 3：部门查看 AI 对长期未招满的分析）。
+     */
+    @GetMapping("/lifecycle/{jobId}")
+    public Result<Map<String, Object>> getLifecycleAdvice(@PathVariable Long jobId) {
+        AgentTask task = agentTaskMapper.selectLatest(AgentTask.TASK_LIFECYCLE, "job", jobId);
+        if (task == null || task.getResultJson() == null || task.getResultJson().isBlank()) {
+            return Result.success(Map.of());
+        }
+        try {
+            return Result.success(objectMapper.readValue(task.getResultJson(),
+                    new TypeReference<Map<String, Object>>() {}));
+        } catch (Exception e) {
+            return Result.success(Map.of());
+        }
+    }
+
+    /**
+     * 手动触发生命周期扫描（场景 3 演示/调试）：扫描超过 lifecycle-days 未招满的在招岗位，
+     * 触发 CoordinatorAgent 的 AI 分析 + 建议通知。
+     */
+    @LogOperation
+    @RequireRole({2, 3})
+    @PostMapping("/lifecycle/scan")
+    public Result<Map<String, Object>> scanLifecycle() {
+        List<com.workstudy.entity.Job> jobs = jobMapper.selectByStatus(1);
+        java.time.LocalDateTime threshold = java.time.LocalDateTime.now().minusDays(lifecycleDays);
+        int triggered = 0;
+        for (com.workstudy.entity.Job job : jobs) {
+            if (job.getUpdateTime() != null && job.getUpdateTime().isBefore(threshold)) {
+                coordinatorAgent.onJobLifecycle(job.getId());
+                triggered++;
+            }
+        }
+        Map<String, Object> data = new HashMap<>();
+        data.put("message", "生命周期扫描完成，触发 " + triggered + " 个岗位分析（阈值 " + lifecycleDays + " 天）");
+        return Result.success(data);
     }
 }

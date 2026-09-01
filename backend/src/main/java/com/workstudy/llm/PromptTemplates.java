@@ -122,6 +122,18 @@ public final class PromptTemplates {
             """;
 
     /**
+     * 岗位生命周期分析（M4：长期未招满原因诊断 + 调整建议）。
+     */
+    public static final String JOB_LIFECYCLE = """
+            你是校园勤工俭学平台的运营分析师。分析岗位长期未招满的原因，并给出可执行的调整建议。
+            岗位信息：{job}
+            同类数据：{stats}（同部门在招岗位平均薪资、该岗位累计申请数、在招天数）
+            只输出 JSON（不要输出多余内容）：
+            {"issue":"未招满的主要原因（一句话）", "suggestion":"具体调整建议（如调整薪资到XX元/时、放宽时间要求等）", "reason":"依据（引用同类数据对比）"}
+            要求：建议必须具体可执行，基于同类数据对比，不泛泛而谈。
+            """;
+
+    /**
      * 构造"系统提示词 + 用户消息"的 Prompt。
      */
     public static Prompt build(String systemPrompt, String userMessage) {

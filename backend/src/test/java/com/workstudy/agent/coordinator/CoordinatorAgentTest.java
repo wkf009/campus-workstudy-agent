@@ -1,6 +1,7 @@
 package com.workstudy.agent.coordinator;
 
 import com.workstudy.agent.audit.JobAuditAgent;
+import com.workstudy.agent.common.LlmJsonParser;
 import com.workstudy.agent.jobmatch.JobWriterAgent;
 import com.workstudy.agent.jobmatch.RecommendationService;
 import com.workstudy.agent.jobmatch.StudentProfileService;
@@ -10,6 +11,7 @@ import com.workstudy.entity.Application;
 import com.workstudy.entity.AuditReport;
 import com.workstudy.entity.Job;
 import com.workstudy.entity.StudentProfile;
+import com.workstudy.llm.ChatService;
 import com.workstudy.mapper.AgentTaskMapper;
 import com.workstudy.mapper.ApplicationMapper;
 import com.workstudy.mapper.JobMapper;
@@ -21,7 +23,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -46,6 +51,10 @@ class CoordinatorAgentTest {
     private RecommendationService recommendationService;
     @Mock
     private NotificationService notificationService;
+    @Mock
+    private ChatService chatService;
+    @Mock
+    private LlmJsonParser jsonParser;
 
     @InjectMocks
     private CoordinatorAgent coordinatorAgent;
@@ -163,6 +172,54 @@ class CoordinatorAgentTest {
         coordinatorAgent.onApplicationProcessed(5L, 1);
 
         verify(taskMapper, never()).insert(any());
+        verify(notificationService, never()).sendNotification(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void onJobLifecycleGeneratesAdviceAndNotifies() {
+        Job job = new Job();
+        job.setId(9L);
+        job.setTitle("学生处助理");
+        job.setDepartmentId(1L);
+        job.setPublisherId(2L);
+        job.setStatus(1);
+        job.setSalary(new BigDecimal("20.00"));
+        job.setUpdateTime(LocalDateTime.now().minusDays(30));
+
+        when(taskMapper.selectLatest(anyString(), anyString(), any())).thenReturn(null);
+        when(taskMapper.insert(any())).thenReturn(1);
+        when(jobMapper.selectById(9L)).thenReturn(job);
+        when(jobMapper.selectByDepartment(1L)).thenReturn(List.of(job)); // 排除自身 → 均值 0
+        when(applicationMapper.selectByJobId(9L)).thenReturn(List.of());
+        when(chatService.chat(anyString(), anyString())).thenReturn("ok");
+        when(jsonParser.parseJsonObject(anyString())).thenReturn(Map.of(
+                "issue", "薪资偏低",
+                "suggestion", "建议调整到 25 元/时",
+                "reason", "同类岗位均值更高"
+        ));
+        when(taskMapper.updateResult(any())).thenReturn(1);
+
+        coordinatorAgent.onJobLifecycle(9L);
+
+        verify(notificationService).sendNotification(eq(2L), contains("调整建议"), anyString(), eq(1), eq(9L));
+        ArgumentCaptor<AgentTask> captor = ArgumentCaptor.forClass(AgentTask.class);
+        verify(taskMapper).updateResult(captor.capture());
+        assertEquals(AgentTask.STATUS_SUCCESS, captor.getValue().getStatus());
+    }
+
+    @Test
+    void onJobLifecycleSkipsNonPublishedJob() {
+        Job job = new Job();
+        job.setId(9L);
+        job.setStatus(0); // 非招聘中
+        when(taskMapper.selectLatest(anyString(), anyString(), any())).thenReturn(null);
+        when(taskMapper.insert(any())).thenReturn(1);
+        when(jobMapper.selectById(9L)).thenReturn(job);
+        when(taskMapper.updateResult(any())).thenReturn(1);
+
+        coordinatorAgent.onJobLifecycle(9L);
+
+        verify(chatService, never()).chat(anyString(), anyString());
         verify(notificationService, never()).sendNotification(any(), any(), any(), any(), any());
     }
 }

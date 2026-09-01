@@ -2,6 +2,7 @@ package com.workstudy.agent.coordinator;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.workstudy.agent.audit.JobAuditAgent;
+import com.workstudy.agent.common.LlmJsonParser;
 import com.workstudy.agent.jobmatch.JobWriterAgent;
 import com.workstudy.agent.jobmatch.RecommendationService;
 import com.workstudy.agent.jobmatch.StudentProfileService;
@@ -11,6 +12,8 @@ import com.workstudy.entity.Application;
 import com.workstudy.entity.AuditReport;
 import com.workstudy.entity.Job;
 import com.workstudy.entity.StudentProfile;
+import com.workstudy.llm.ChatService;
+import com.workstudy.llm.PromptTemplates;
 import com.workstudy.mapper.AgentTaskMapper;
 import com.workstudy.mapper.ApplicationMapper;
 import com.workstudy.mapper.JobMapper;
@@ -22,7 +25,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -48,6 +54,8 @@ public class CoordinatorAgent {
     private final StudentProfileService profileService;
     private final RecommendationService recommendationService;
     private final NotificationService notificationService;
+    private final ChatService chatService;
+    private final LlmJsonParser jsonParser;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public CoordinatorAgent(AgentTaskMapper taskMapper,
@@ -57,7 +65,9 @@ public class CoordinatorAgent {
                             JobMapper jobMapper,
                             StudentProfileService profileService,
                             RecommendationService recommendationService,
-                            NotificationService notificationService) {
+                            NotificationService notificationService,
+                            ChatService chatService,
+                            LlmJsonParser jsonParser) {
         this.taskMapper = taskMapper;
         this.jobAuditAgent = jobAuditAgent;
         this.jobWriterAgent = jobWriterAgent;
@@ -66,6 +76,8 @@ public class CoordinatorAgent {
         this.profileService = profileService;
         this.recommendationService = recommendationService;
         this.notificationService = notificationService;
+        this.chatService = chatService;
+        this.jsonParser = jsonParser;
     }
 
     /**
@@ -164,6 +176,80 @@ public class CoordinatorAgent {
             failTask(task, e.getMessage());
             log.warn("申请 {} 撮合失败（不影响审核）: {}", applicationId, e.getMessage());
         }
+    }
+
+    /**
+     * 生命周期协作（场景 3）：岗位长期未招满 → 分析原因（同类数据对比）→ 生成调整建议 → 通知部门。
+     * 由 ScheduledTasks 定时扫描触发，HITL：建议是否采纳由部门决定（编辑岗位/联系发布人）。
+     */
+    public void onJobLifecycle(Long jobId) {
+        AgentTask task = startTask(AgentTask.TASK_LIFECYCLE, "job", jobId,
+                "{\"event\":\"LIFECYCLE_SCAN\"}");
+        if (task == null) {
+            return;
+        }
+        try {
+            Job job = jobMapper.selectById(jobId);
+            if (job == null || job.getStatus() == null || job.getStatus() != 1) {
+                completeTask(task, "{\"skip\":\"岗位非招聘中\"}");
+                return;
+            }
+            // 同类数据（规则计算）
+            double avgSalary = avgSalaryOfDepartment(job.getDepartmentId(), jobId);
+            int appCount = applicationMapper.selectByJobId(jobId).size();
+            long daysOpen = job.getUpdateTime() == null ? 0
+                    : Math.max(0, ChronoUnit.DAYS.between(job.getUpdateTime(), LocalDateTime.now()));
+
+            String input = "岗位信息：{标题=" + nvl(job.getTitle())
+                    + "；部门=" + nvl(job.getDepartmentName())
+                    + "；薪资=" + (job.getSalary() == null ? "未填" : job.getSalary() + "元/时")
+                    + "；时间=" + nvl(job.getWorkTime())
+                    + "；要求=" + nvl(job.getRequirements())
+                    + "}\n同类数据：同部门在招岗位平均薪资=" + avgSalary + "元/时；该岗位累计申请数=" + appCount
+                    + "；在招天数=" + daysOpen + "天";
+            String llmText = chatService.chat(PromptTemplates.JOB_LIFECYCLE, input);
+            Map<String, Object> parsed = jsonParser.parseJsonObject(llmText);
+            String issue = LlmJsonParser.str(parsed, "issue");
+            String suggestion = LlmJsonParser.str(parsed, "suggestion");
+
+            if (job.getPublisherId() != null && suggestion != null && !suggestion.isBlank()) {
+                notificationService.sendNotification(job.getPublisherId(), "岗位长期未招满，AI 给出调整建议",
+                        "《" + job.getTitle() + "》已招聘 " + daysOpen + " 天。AI 分析：" + nvl(issue)
+                                + "。建议：" + suggestion,
+                        1, jobId);
+            }
+            completeTask(task, toJson(parsed));
+            log.info("岗位 {} 生命周期分析完成: issue={}", jobId, issue);
+        } catch (Exception e) {
+            failTask(task, e.getMessage());
+            log.warn("岗位 {} 生命周期分析失败: {}", jobId, e.getMessage());
+        }
+    }
+
+    /** 同部门在招岗位平均薪资（排除自身），无数据返回 0 */
+    private double avgSalaryOfDepartment(Long departmentId, Long excludeJobId) {
+        try {
+            if (departmentId == null) {
+                return 0;
+            }
+            List<Job> deptJobs = jobMapper.selectByDepartment(departmentId);
+            double sum = 0;
+            int count = 0;
+            for (Job j : deptJobs) {
+                if (j.getId() != null && j.getId().equals(excludeJobId)) continue;
+                if (j.getStatus() != null && j.getStatus() == 1 && j.getSalary() != null) {
+                    sum += j.getSalary().doubleValue();
+                    count++;
+                }
+            }
+            return count == 0 ? 0 : Math.round(sum / count * 100.0) / 100.0;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private String nvl(String s) {
+        return s == null || s.isBlank() ? "无" : s;
     }
 
     // ==================== 任务管理（留痕/幂等/防呆） ====================
