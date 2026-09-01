@@ -1,5 +1,6 @@
 package com.workstudy.service;
 
+import com.workstudy.agent.coordinator.CoordinatorAgent;
 import com.workstudy.entity.Job;
 import com.workstudy.mapper.JobMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +23,9 @@ class JobServiceTest {
 
     @Mock
     private NotificationService notificationService;
+
+    @Mock
+    private CoordinatorAgent coordinatorAgent;
 
     @InjectMocks
     private JobService jobService;

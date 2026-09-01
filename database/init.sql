@@ -179,3 +179,22 @@ CREATE TABLE `audit_report` (
   `created_at`  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '生成时间',
   UNIQUE KEY `uk_target` (`target_type`, `target_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 审核报告表';
+
+-- Agent 任务表（M1：Agent 动作留痕/防呆/审计）
+DROP TABLE IF EXISTS `agent_task`;
+CREATE TABLE `agent_task` (
+  `id`          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  `task_type`   VARCHAR(50) NOT NULL COMMENT '任务类型',
+  `target_type` VARCHAR(20) NOT NULL COMMENT '业务对象类型',
+  `target_id`   BIGINT      NOT NULL COMMENT '业务对象ID',
+  `status`      VARCHAR(20) DEFAULT 'PENDING' COMMENT 'PENDING/RUNNING/SUCCESS/FAILED/SKIPPED',
+  `input_json`  TEXT COMMENT '输入快照',
+  `result_json` TEXT COMMENT '结果快照',
+  `error_msg`   VARCHAR(500) DEFAULT NULL COMMENT '错误信息',
+  `attempt`     INT DEFAULT 0 COMMENT '尝试/修订次数',
+  `created_at`  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `finished_at` DATETIME DEFAULT NULL COMMENT '完成时间',
+  KEY `idx_target` (`target_type`, `target_id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_type_target` (`task_type`, `target_type`, `target_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Agent 任务表';

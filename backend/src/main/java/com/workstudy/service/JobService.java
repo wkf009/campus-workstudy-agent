@@ -2,6 +2,7 @@ package com.workstudy.service;
 
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import com.workstudy.agent.coordinator.CoordinatorAgent;
 import com.workstudy.common.PageResult;
 import com.workstudy.entity.Job;
 import com.workstudy.mapper.JobMapper;
@@ -19,6 +20,9 @@ public class JobService {
 
     @Autowired
     private NotificationService notificationService;
+
+    @Autowired
+    private CoordinatorAgent coordinatorAgent;
 
     public Job selectById(Long id) {
         return jobMapper.selectById(id);
@@ -92,6 +96,8 @@ public class JobService {
     public Job submitJob(Job job) {
         job.setStatus(0);
         jobMapper.insert(job);
+        // 多 Agent 协作：提交后自动触发 AI 预审（CoordinatorAgent 内部隔离异常，不影响本事务）
+        coordinatorAgent.onJobSubmitted(job.getId());
         return job;
     }
 
