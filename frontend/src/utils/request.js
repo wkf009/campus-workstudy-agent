@@ -52,6 +52,9 @@ request.interceptors.response.use(
       } else {
         message.error(error.response.data?.message || `服务器错误 (${status})`)
       }
+    } else if (error.code === 'ECONNABORTED') {
+      // axios 超时（AI 接口含 LLM 调用，可能较慢）
+      message.error('请求超时：AI 服务响应较慢，请稍后重试')
     } else {
       message.error('网络错误，请检查后端服务是否运行')
     }

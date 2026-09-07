@@ -74,7 +74,7 @@ export default {
         const res = await request.post(`/agent/audit/job/${jobId}/generate`, null, { timeout: 90000 })
         reports.value = { ...reports.value, [jobId]: res.data }
         message.success('AI 预审报告已生成')
-      } catch (e) { message.error('AI 预审超时或服务暂不可用，请稍后重试（可查看后端日志）') }
+      } catch (e) { console.error('AI 预审失败', e) }
       finally { generatingId.value = null }
     }
 

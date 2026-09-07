@@ -53,7 +53,7 @@ export default {
         formState.value.workTime = d.workTime || formState.value.workTime
         if (d.salarySuggest) formState.value.salary = String(d.salarySuggest)
         message.success('AI 已生成岗位初稿，请核对后提交')
-      } catch (e) { message.error('AI 生成超时或服务暂不可用，请稍后重试') }
+      } catch (e) { console.error('AI 生成失败', e) }
       finally { aiLoading.value = false }
     }
 

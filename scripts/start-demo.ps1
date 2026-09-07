@@ -220,23 +220,28 @@ foreach ($u in @('admin', 'dept1', 'student1')) {
 $tokens | ConvertTo-Json | Set-Content $tokenFile
 Write-Host "  Token 已保存：$tokenFile"
 
-# ============ 6. 打开三个角色页面（已登录，浏览器自动跳转） ============
+# ============ 6. 打开三个角色页面（独立浏览器窗口，隔离登录态） ============
 if ($tokens.Count -gt 0 -and -not $env:DISABLE_AUTO_OPEN) {
-    Write-Step "6 打开三个角色页面（浏览器自动登录）"
+    Write-Step "6 打开三个角色页面（独立窗口隔离登录态）"
     $frontUrl = 'http://localhost:3000'
     $pw = [uri]::EscapeDataString($Password)
-    $openTargets = @(
-        @{ u = 'admin';    p = "admin" },
-        @{ u = 'dept1';    p = "dept1" },
-        @{ u = 'student1'; p = "student1" }
-    )
-    foreach ($t in $openTargets) {
-        $url = "$frontUrl/auto-login.html?username=$($t.u)&password=$pw"
-        Write-Host "  打开 $($t.u) 页面 ..."
-        Start-Process $url
+    # 用 Edge 独立 profile 打开（同一浏览器多个标签会共享 localStorage，登录态互相覆盖 → 用 --user-data-dir 隔离）
+    $edge = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
+    if (-not (Test-Path $edge)) { $edge = "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe" }
+    $profileBase = Join-Path $runtime 'profiles'
+    foreach ($u in @('admin', 'dept1', 'student1')) {
+        $url = "$frontUrl/auto-login.html?username=$u&password=$pw"
+        if (Test-Path $edge) {
+            $profileDir = Join-Path $profileBase "role-$u"
+            Write-Host "  打开 $u（独立 Edge 窗口）..."
+            Start-Process $edge -ArgumentList "--user-data-dir=$profileDir", "--new-window", $url
+        } else {
+            Write-Host "  打开 $u（默认浏览器，注意登录态可能互相覆盖）..."
+            Start-Process $url
+        }
         Start-Sleep -Milliseconds 900
     }
-    Write-Host "  已在浏览器打开 3 个标签页：管理员 / 部门管理员 / 学生（各自已登录）" -ForegroundColor Green
+    Write-Host "  已打开三角色独立窗口：管理员 / 部门管理员 / 学生（登录态互不干扰）" -ForegroundColor Green
 } elseif (-not $env:DISABLE_AUTO_OPEN) {
     Write-Host "[!] 登录未全部成功，跳过自动打开浏览器（可手动访问 $frontUrl/auto-login.html?username=xxx&password=xxx）" -ForegroundColor Yellow
 }

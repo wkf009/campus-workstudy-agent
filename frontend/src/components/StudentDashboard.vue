@@ -99,7 +99,8 @@ export default {
         const res = await request.get('/agent/recommendations', { params: { topN: 3 }, timeout: 90000 })
         recommendations.value = res.data || []
       } catch (e) {
-        recError.value = 'AI 推荐超时或服务暂不可用，请稍后重试'
+        console.error('AI 推荐失败', e)
+        recError.value = '推荐服务暂不可用，请稍后重试'
       } finally { recLoading.value = false }
     }
 
@@ -109,7 +110,7 @@ export default {
         const res = await request.post('/agent/profile/rebuild', null, { timeout: 90000 })
         message.success('画像重建完成，正在重新推荐...')
         fetchRecommendations()
-      } catch (e) { message.error('画像重建超时或服务暂不可用，请稍后重试') }
+      } catch (e) { console.error('画像重建失败', e) }
       finally { profileLoading.value = false }
     }
 

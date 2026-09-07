@@ -93,7 +93,7 @@ export default {
       try {
         const res = await request.post('/agent/analyze', null, { timeout: 90000 })
         analysis.value = res.data || {}
-      } catch (e) { message.error('AI 分析超时或服务暂不可用，请稍后重试') }
+      } catch (e) { console.error('AI 分析失败', e) }
       finally { analyzing.value = false }
     }
 

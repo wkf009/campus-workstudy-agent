@@ -67,7 +67,7 @@ export default {
         const res = await request.post(`/agent/audit/match/${applicationId}`, null, { timeout: 90000 })
         matches.value = { ...matches.value, [applicationId]: res.data }
         message.success('AI 匹配度评估完成')
-      } catch (e) { message.error('AI 评估超时或服务暂不可用，请稍后重试') }
+      } catch (e) { console.error('AI 匹配度评估失败', e) }
       finally { evaluatingId.value = null }
     }
 

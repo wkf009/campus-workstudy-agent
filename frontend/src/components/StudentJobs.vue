@@ -85,7 +85,7 @@ export default {
         total.value = jobs.value.length
         page.value = 1
         message.success('AI 已为你找到 ' + jobs.value.length + ' 个岗位')
-      } catch (e) { message.error('AI 搜索超时或服务暂不可用，请稍后重试') }
+      } catch (e) { console.error('AI 搜索失败', e) }
       finally { aiSearching.value = false }
     }
 
