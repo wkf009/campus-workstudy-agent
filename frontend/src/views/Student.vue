@@ -22,7 +22,7 @@ export default {
   components: { ChatAssistant },
   setup() {
     const router = useRouter()
-    const logout = () => { localStorage.removeItem('user'); localStorage.removeItem('token'); router.push('/') }
+    const logout = () => { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); router.push('/') }
     return { logout }
   }
 }

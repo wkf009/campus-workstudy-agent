@@ -86,8 +86,8 @@ const router = createRouter({
 
 // 路由守卫
 router.beforeEach((to, from, next) => {
-  const user = localStorage.getItem('user')
-  const token = localStorage.getItem('token')
+  const user = sessionStorage.getItem('user')
+  const token = sessionStorage.getItem('token')
   
   // 不需要登录的页面
   if (to.path === '/') {

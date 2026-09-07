@@ -9,7 +9,7 @@
     <div id="msg">正在登录并跳转...</div>
   </div>
   <script>
-    // 演示辅助页：?username=xx&password=xx → 调登录接口 → 写入 localStorage → 按角色跳首页
+    // 演示辅助页：?username=xx&password=xx → 调登录接口 → 写入 sessionStorage → 按角色跳首页
     (function () {
       var q = new URLSearchParams(location.search);
       var username = q.get('username');
@@ -27,8 +27,8 @@
         .then(function (r) { return r.json(); })
         .then(function (d) {
           if (d.code === 200 && d.data && d.data.token) {
-            localStorage.setItem('user', JSON.stringify(d.data.user));
-            localStorage.setItem('token', d.data.token);
+            sessionStorage.setItem('user', JSON.stringify(d.data.user));
+            sessionStorage.setItem('token', d.data.token);
             var role = d.data.user.role;
             var target = (role === 3) ? '/admin/dashboard'
               : ((role === 0) ? '/student/dashboard' : '/department/dashboard');

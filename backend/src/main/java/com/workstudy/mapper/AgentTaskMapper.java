@@ -26,4 +26,10 @@ public interface AgentTaskMapper {
     @Update("UPDATE agent_task SET status = #{status}, result_json = #{resultJson}, error_msg = #{errorMsg}, " +
             "finished_at = NOW() WHERE id = #{id}")
     int updateResult(AgentTask task);
+
+    /** 删除某目标某类型的任务（rework 重新提交时清旧预审任务，允许重新预审） */
+    @Delete("DELETE FROM agent_task WHERE task_type = #{taskType} AND target_type = #{targetType} AND target_id = #{targetId}")
+    int deleteByTarget(@Param("taskType") String taskType,
+                       @Param("targetType") String targetType,
+                       @Param("targetId") Long targetId);
 }

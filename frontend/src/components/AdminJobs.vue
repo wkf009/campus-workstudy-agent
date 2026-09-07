@@ -28,7 +28,10 @@
           <p v-if="reportList(reports[job.id].suggestions).length"><strong>修改建议：</strong>{{ reportList(reports[job.id].suggestions).join('；') }}</p>
           <p v-if="reportList(reports[job.id].riskFlags).length" class="risk"><strong>风险：</strong>{{ reportList(reports[job.id].riskFlags).join('；') }}</p>
           <div class="actions" v-if="job.status===0">
-            <a-button type="primary" size="small" @click="adopt(job.id)" :loading="adoptingId === job.id">✅ 采纳 AI 建议</a-button>
+            <!-- SUPPLEMENT：打回部门修改（附 AI 建议） -->
+            <a-button v-if="reports[job.id].suggestion === 'SUPPLEMENT'" @click="sendBack(job)" :loading="adoptingId === job.id">⛔ 打回部门修改</a-button>
+            <!-- PASS/REJECT：一键采纳 AI 建议 -->
+            <a-button v-else type="primary" size="small" @click="adopt(job.id)" :loading="adoptingId === job.id">✅ 采纳 AI 建议</a-button>
           </div>
         </div>
       </div>
@@ -54,6 +57,17 @@ export default {
       try {
         const res = await request.get('/admin/jobs/all')
         jobs.value = res.data || []
+        // 自动加载待审岗位已生成的 AI 报告（发布后自动预审已落库，直接展示）
+        const rep = {}
+        for (const j of jobs.value) {
+          if (j.status === 0) {
+            try {
+              const r = await request.get(`/agent/audit/report/job/${j.id}`)
+              if (r.data && r.data.suggestion) rep[j.id] = r.data
+            } catch (e) { /* 无报告则跳过 */ }
+          }
+        }
+        reports.value = rep
       } catch (e) { message.error('获取岗位列表失败') }
       finally { loading.value = false }
     }
@@ -78,14 +92,27 @@ export default {
       finally { generatingId.value = null }
     }
 
-    // 一键采纳 AI 建议（HITL）
+    // 一键采纳 AI 建议（HITL：PASS→发布 / REJECT→拒绝）
     const adopt = async (jobId) => {
       adoptingId.value = jobId
       try {
         const res = await request.post(`/agent/audit/job/${jobId}/adopt`)
         message.success(res.data?.message || '已采纳')
         fetch()
-      } catch (e) { message.error('采纳失败') }
+      } catch (e) { console.error('采纳失败', e) }
+      finally { adoptingId.value = null }
+    }
+
+    // 打回部门修改（SUPPLEMENT：状态 5，附 AI 修改建议）
+    const sendBack = async (job) => {
+      adoptingId.value = job.id
+      try {
+        const sug = reportList(reports.value[job.id]?.suggestions)
+        const remark = sug.length ? ('AI 建议：' + sug.join('；')) : 'AI 预审建议补充信息，请修改后重新提交'
+        await request.post('/admin/jobs/send-back', { jobId: job.id, remark })
+        message.success('已打回部门修改，通知已发送')
+        fetch()
+      } catch (e) { console.error('打回失败', e) }
       finally { adoptingId.value = null }
     }
 
@@ -101,7 +128,7 @@ export default {
       switch (s) { case 0: return 'status-pending'; case 1: return 'status-published'; case 2: return 'status-ended'; case 3: return 'status-rejected'; case 4: return 'status-full'; default: return 'status-pending' }
     }
     const getStatusText = (s) => {
-      switch (s) { case 0: return '待审批'; case 1: return '招聘中'; case 2: return '已结束'; case 3: return '已拒绝'; case 4: return '已招满'; default: return '未知' }
+      switch (s) { case 0: return '待审批'; case 1: return '招聘中'; case 2: return '已结束'; case 3: return '已拒绝'; case 4: return '已招满'; case 5: return '已打回修改'; default: return '未知' }
     }
 
     onMounted(() => { fetch() })

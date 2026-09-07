@@ -99,6 +99,31 @@ public class JobController {
         return Result.success(jobService.auditJob(jobId, result, remark));
     }
 
+    /**
+     * 打回岗位（采纳 AI 的 SUPPLEMENT 建议）：状态 5，附修改建议，通知发布部门。
+     */
+    @LogOperation
+    @RequireRole({3})
+    @PostMapping("/admin/jobs/send-back")
+    public Result<Job> sendBackJob(@RequestBody Map<String, Object> request) {
+        Long jobId = Long.parseLong(request.get("jobId").toString());
+        String remark = (String) request.getOrDefault("remark", "AI 预审建议补充信息，请修改后重新提交");
+        return Result.success(jobService.sendBackJob(jobId, remark));
+    }
+
+    /**
+     * 部门修改被退回岗位后重新提交（状态 5 → 0，触发新一轮 AI 预审）。
+     */
+    @LogOperation
+    @RequireRole({1, 2})
+    @PostMapping("/department/jobs/rework")
+    public Result<Job> reworkJob(@RequestBody Job job) {
+        if (job.getId() == null) {
+            return Result.error("缺少岗位 ID");
+        }
+        return Result.success(jobService.reworkJob(job));
+    }
+
     @LogOperation
     @RequireRole({3})
     @PostMapping("/admin/jobs/publish")

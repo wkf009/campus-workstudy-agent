@@ -73,7 +73,7 @@ export default {
 
     const fetchStats = async () => {
       try {
-        const user = JSON.parse(localStorage.getItem('user'))
+        const user = JSON.parse(sessionStorage.getItem('user'))
         if (user && user.departmentId) {
           const res = await request.get(`/departments/${user.departmentId}`)
           if (res.code === 200 && res.data) {
@@ -115,7 +115,7 @@ export default {
     const fetchPendingStudents = async () => {
       try {
         loadingStudents.value = true
-        const user = JSON.parse(localStorage.getItem('user'))
+        const user = JSON.parse(sessionStorage.getItem('user'))
         const res = await request.get(`/department/users/pending?departmentId=${user.departmentId}`)
         pendingStudents.value = res.data || []
         pendingStudentCount.value = (res.data || []).length
@@ -125,7 +125,7 @@ export default {
 
     const approveStudent = async (studentId, status) => {
       try {
-        const user = JSON.parse(localStorage.getItem('user'))
+        const user = JSON.parse(sessionStorage.getItem('user'))
         await request.post('/department/users/approve', { userId: studentId, status, departmentId: user.departmentId })
         message.success(status === 1 ? '审批通过' : '审批拒绝')
         fetchPendingStudents()

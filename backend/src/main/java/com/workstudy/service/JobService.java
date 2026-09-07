@@ -25,6 +25,9 @@ public class JobService {
     @Autowired
     private ApplicationEventPublisher eventPublisher;
 
+    @Autowired
+    private com.workstudy.mapper.AgentTaskMapper agentTaskMapper;
+
     public Job selectById(Long id) {
         return jobMapper.selectById(id);
     }
@@ -99,6 +102,59 @@ public class JobService {
         jobMapper.insert(job);
         // 多 Agent 协作：发布事件，事务提交后由 CoordinatorAgent 异步执行"预审-修订"协作流
         // （异步化避免 LLM 调用阻塞发布接口，见 docs/踩坑记录.md K-09）
+        eventPublisher.publishEvent(new JobSubmittedEvent(job.getId()));
+        return job;
+    }
+
+    /**
+     * 打回岗位（状态 5）：管理员采纳 AI 的 SUPPLEMENT 建议，把岗位打回发布部门修改。
+     * 附上 AI 修改建议作为 remark，并通知发布部门。
+     */
+    @Transactional
+    public Job sendBackJob(Long jobId, String remark) {
+        Job job = jobMapper.selectById(jobId);
+        if (job == null) {
+            throw new RuntimeException("岗位不存在");
+        }
+        if (job.getStatus() == null || job.getStatus() != 0) {
+            throw new RuntimeException("仅待审批岗位可打回");
+        }
+        job.setStatus(5);
+        job.setRemark(remark);
+        jobMapper.update(job);
+
+        if (job.getPublisherId() != null) {
+            String remarkText = (remark == null || remark.isEmpty()) ? "" : "，修改建议：" + remark;
+            notificationService.sendNotification(job.getPublisherId(), "岗位被打回，请修改后重新提交",
+                    "您发布的《" + job.getTitle() + "》被管理员打回（AI 预审建议补充信息）" + remarkText
+                            + "。请修改后在'我的岗位'中重新提交。", 1, jobId);
+        }
+        return job;
+    }
+
+    /**
+     * 部门修改被退回岗位并重新提交（状态 5 → 0），触发新一轮 AI 预审。
+     */
+    @Transactional
+    public Job reworkJob(Job input) {
+        Job job = jobMapper.selectById(input.getId());
+        if (job == null) {
+            throw new RuntimeException("岗位不存在");
+        }
+        if (job.getStatus() == null || job.getStatus() != 5) {
+            throw new RuntimeException("仅被打回的岗位可重新提交");
+        }
+        job.setTitle(input.getTitle());
+        job.setDescription(input.getDescription());
+        job.setRequirements(input.getRequirements());
+        if (input.getSalary() != null) job.setSalary(input.getSalary());
+        if (input.getLocation() != null) job.setLocation(input.getLocation());
+        if (input.getWorkTime() != null) job.setWorkTime(input.getWorkTime());
+        job.setStatus(0);
+        job.setRemark(null);
+        jobMapper.update(job);
+        // 清掉旧预审任务（否则幂等会跳过重新预审），再触发新一轮 AI 预审-修订协作流
+        agentTaskMapper.deleteByTarget(com.workstudy.entity.AgentTask.TASK_JOB_AUDIT, "job", job.getId());
         eventPublisher.publishEvent(new JobSubmittedEvent(job.getId()));
         return job;
     }

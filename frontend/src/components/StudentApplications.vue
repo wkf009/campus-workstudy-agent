@@ -41,7 +41,7 @@ export default {
 
     const fetchApplications = async () => {
       try {
-        const user = JSON.parse(localStorage.getItem('user'))
+        const user = JSON.parse(sessionStorage.getItem('user'))
         const res = await request.get(`/student/applications/${user.id}`)
         applications.value = res.data || res
       } catch (e) { message.error('获取申请记录失败') }
@@ -50,7 +50,7 @@ export default {
 
     // 通过 axios 携带 token 导出，避免 window.open 无 Authorization 被 401 拦截
     const exportCsv = async () => {
-      const user = JSON.parse(localStorage.getItem('user'))
+      const user = JSON.parse(sessionStorage.getItem('user'))
       try {
         const res = await request.get(`/export/applications/csv?userId=${user.id}`, { responseType: 'blob' })
         downloadBlob(res.data, '申请记录.csv')

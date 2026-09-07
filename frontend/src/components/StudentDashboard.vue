@@ -86,7 +86,7 @@ export default {
     const profileLoading = ref(false)
 
     onMounted(() => {
-      const userStr = localStorage.getItem('user')
+      const userStr = sessionStorage.getItem('user')
       if (userStr) user.value = JSON.parse(userStr)
       fetchRecommendations()
     })
@@ -140,7 +140,7 @@ export default {
         if (res.code === 200) {
           message.success('个人信息更新成功')
           editProfileVisible.value = false
-          if (res.data) { localStorage.setItem('user', JSON.stringify(res.data)); user.value = res.data }
+          if (res.data) { sessionStorage.setItem('user', JSON.stringify(res.data)); user.value = res.data }
         }
       } catch (e) { message.error('更新失败') }
     }
@@ -152,7 +152,7 @@ export default {
           try {
             await request.delete(`/admin/users/${user.value.id}`)
             message.success('账号已注销')
-            localStorage.removeItem('user'); localStorage.removeItem('token')
+            sessionStorage.removeItem('user'); sessionStorage.removeItem('token')
             router.push('/')
           } catch (e) { message.error('注销失败') }
         }

@@ -58,7 +58,7 @@ export default {
       scrollToBottom()
 
       try {
-        const token = localStorage.getItem('token')
+        const token = sessionStorage.getItem('token')
         const response = await fetch('/api/agent/chat', {
           method: 'POST',
           headers: {

@@ -15,7 +15,7 @@ public interface AuditReportMapper {
     int insert(AuditReport report);
 
     @Update("UPDATE audit_report SET suggestion = #{suggestion}, score = #{score}, reasons = #{reasons}, " +
-            "suggestions = #{suggestions}, risk_flags = #{riskFlags}, agent_model = #{agentModel} " +
+            "suggestions = #{suggestions}, risk_flags = #{riskFlags}, agent_model = #{agentModel}, created_at = NOW() " +
             "WHERE target_type = #{targetType} AND target_id = #{targetId}")
     int updateByTarget(AuditReport report);
 }

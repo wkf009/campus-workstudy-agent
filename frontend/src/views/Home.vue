@@ -119,8 +119,8 @@ export default {
         const res = await request.post('/auth/login', { username: values.username, password: values.password })
         const data = res.data || res
         if (data.token) {
-          localStorage.setItem('user', JSON.stringify(data.user))
-          localStorage.setItem('token', data.token)
+          sessionStorage.setItem('user', JSON.stringify(data.user))
+          sessionStorage.setItem('token', data.token)
           const user = data.user
           if (user.role === 0) router.push('/student/dashboard')
           else if (user.role === 2 || user.role === 1) router.push('/department/dashboard')

@@ -220,28 +220,27 @@ foreach ($u in @('admin', 'dept1', 'student1')) {
 $tokens | ConvertTo-Json | Set-Content $tokenFile
 Write-Host "  Token 已保存：$tokenFile"
 
-# ============ 6. 打开三个角色页面（独立浏览器窗口，隔离登录态） ============
+# ============ 6. 打开三个角色页面（同一浏览器窗口的 3 个标签页） ============
 if ($tokens.Count -gt 0 -and -not $env:DISABLE_AUTO_OPEN) {
-    Write-Step "6 打开三个角色页面（独立窗口隔离登录态）"
+    Write-Step "6 打开三个角色页面（同一浏览器窗口标签页）"
     $frontUrl = 'http://localhost:3000'
     $pw = [uri]::EscapeDataString($Password)
-    # 用 Edge 独立 profile 打开（同一浏览器多个标签会共享 localStorage，登录态互相覆盖 → 用 --user-data-dir 隔离）
+    $urls = @(
+        "$frontUrl/auto-login.html?username=admin&password=$pw",
+        "$frontUrl/auto-login.html?username=dept1&password=$pw",
+        "$frontUrl/auto-login.html?username=student1&password=$pw"
+    )
+    # 登录态存 sessionStorage（每个标签页独立），同一窗口三个标签互不干扰
     $edge = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
     if (-not (Test-Path $edge)) { $edge = "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe" }
-    $profileBase = Join-Path $runtime 'profiles'
-    foreach ($u in @('admin', 'dept1', 'student1')) {
-        $url = "$frontUrl/auto-login.html?username=$u&password=$pw"
-        if (Test-Path $edge) {
-            $profileDir = Join-Path $profileBase "role-$u"
-            Write-Host "  打开 $u（独立 Edge 窗口）..."
-            Start-Process $edge -ArgumentList "--user-data-dir=$profileDir", "--new-window", $url
-        } else {
-            Write-Host "  打开 $u（默认浏览器，注意登录态可能互相覆盖）..."
-            Start-Process $url
-        }
-        Start-Sleep -Milliseconds 900
+    if (Test-Path $edge) {
+        Write-Host "  用 Edge 打开 3 个标签页（同一窗口）..."
+        Start-Process $edge -ArgumentList $urls
+    } else {
+        Write-Host "  用默认浏览器逐个打开 3 个页面..."
+        foreach ($u in $urls) { Start-Process $u; Start-Sleep -Milliseconds 600 }
     }
-    Write-Host "  已打开三角色独立窗口：管理员 / 部门管理员 / 学生（登录态互不干扰）" -ForegroundColor Green
+    Write-Host "  已在浏览器打开 3 个标签：管理员 / 部门管理员 / 学生（登录态独立于各标签页）" -ForegroundColor Green
 } elseif (-not $env:DISABLE_AUTO_OPEN) {
     Write-Host "[!] 登录未全部成功，跳过自动打开浏览器（可手动访问 $frontUrl/auto-login.html?username=xxx&password=xxx）" -ForegroundColor Yellow
 }

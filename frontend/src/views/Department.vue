@@ -15,5 +15,5 @@
 
 <script>
 import { useRouter } from 'vue-router'
-export default { name: 'Department', setup() { const router = useRouter(); const logout = () => { localStorage.removeItem('user'); localStorage.removeItem('token'); router.push('/') }; return { logout } } }
+export default { name: 'Department', setup() { const router = useRouter(); const logout = () => { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); router.push('/') }; return { logout } } }
 </script>

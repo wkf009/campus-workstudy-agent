@@ -62,6 +62,8 @@ public final class PromptTemplates {
               reasons(理由数组), suggestions(修改建议数组), riskFlags(风险标记数组)
             - suggestion=PASS 表示可直接通过；SUPPLEMENT 表示信息需补充；REJECT 表示存在违规或重大缺陷
             - reasons 必须具体可执行，例如"薪资 ¥5/时 低于校园岗位最低标准 ¥15/时"
+            - score 必须按问题严重程度拉开区分度：无问题 90-100；轻微缺项(如仅缺联系方式) 80-89；
+              中等缺失(描述不完整/薪资偏低) 65-79；严重缺陷(疑似违规/大量缺失) 40-64
             """;
 
     /**

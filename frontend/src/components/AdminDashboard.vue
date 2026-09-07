@@ -60,7 +60,7 @@ export default {
     const stats = ref({ totalUsers:0, studentCount:0, mentorCount:0, deptAdminCount:0, totalJobs:0, publishedJobs:0, pendingJobs:0 })
 
     onMounted(async () => {
-      const userStr = localStorage.getItem('user')
+      const userStr = sessionStorage.getItem('user')
       if (userStr) user.value = JSON.parse(userStr)
       try {
         const res = await request.get('/stats/overview')

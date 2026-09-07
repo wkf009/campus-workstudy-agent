@@ -68,7 +68,7 @@ export default {
     const handleFinishFailed = (e) => { console.log('验证失败:', e) }
 
     onMounted(async () => {
-      const user = JSON.parse(localStorage.getItem('user'))
+      const user = JSON.parse(sessionStorage.getItem('user'))
       formState.value.departmentId = user.departmentId
       if (user.departmentId) {
         try {
