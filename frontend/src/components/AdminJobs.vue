@@ -4,13 +4,22 @@
     <div v-if="loading" class="loading">加载中...</div>
     <div v-else-if="jobs.length === 0" class="card"><p>暂无岗位信息</p></div>
     <div v-else>
-      <div v-for="job in jobs" :key="job.id" class="card">
+      <div class="list-toolbar">
+        <a-select v-model:value="sort" style="width:150px" @change="onSortChange">
+          <a-select-option value="latest">最新发布</a-select-option>
+          <a-select-option value="salary_desc">薪资从高到低</a-select-option>
+          <a-select-option value="salary_asc">薪资从低到高</a-select-option>
+        </a-select>
+      </div>
+      <div v-for="job in sortedJobs" :key="job.id" class="card">
         <h3>{{ job.title }}</h3>
-        <p><strong>部门：</strong>{{ job.departmentName }}</p>
-        <p><strong>薪资：</strong>¥{{ job.salary }}</p>
-        <p><strong>招聘名额：</strong>{{ job.quota }}</p>
-        <p><strong>状态：</strong><span :class="['status-tag', getStatusClass(job.status)]">{{ getStatusText(job.status) }}</span></p>
-        <p v-if="job.remark"><strong>审批备注：</strong>{{ job.remark }}</p>
+        <div class="info-grid">
+          <span class="info-item"><strong>部门：</strong>{{ job.departmentName }}</span>
+          <span class="info-item"><strong>薪资：</strong>¥{{ job.salary }}</span>
+          <span class="info-item"><strong>招聘名额：</strong>{{ job.quota }}</span>
+          <span class="info-item"><strong>状态：</strong><span :class="['status-tag', getStatusClass(job.status)]">{{ getStatusText(job.status) }}</span></span>
+        </div>
+        <p v-if="job.remark" class="info-remark"><strong>审批备注：</strong>{{ job.remark }}</p>
         <div class="actions" v-if="job.status===0">
           <a-button type="primary" @click="audit(job.id, 1)">通过</a-button>
           <a-button danger @click="audit(job.id, 3)">拒绝</a-button>
@@ -40,7 +49,7 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import request from '../utils/request.js'
 import { message } from 'ant-design-vue'
 
@@ -52,6 +61,16 @@ export default {
     const reports = ref({})        // jobId -> AuditReport
     const generatingId = ref(null)
     const adoptingId = ref(null)
+    const sort = ref('latest')
+
+    // 前端排序：latest=最新发布在前；salary_desc/salary_asc=按薪资
+    const sortedJobs = computed(() => {
+      const list = [...jobs.value]
+      if (sort.value === 'salary_asc') return list.sort((a, b) => (a.salary || 0) - (b.salary || 0))
+      if (sort.value === 'salary_desc') return list.sort((a, b) => (b.salary || 0) - (a.salary || 0))
+      return list.sort((a, b) => new Date(b.createTime) - new Date(a.createTime))
+    })
+    const onSortChange = () => { /* sortedJobs computed 自动重排 */ }
 
     const fetch = async () => {
       try {
@@ -132,7 +151,7 @@ export default {
     }
 
     onMounted(() => { fetch() })
-    return { jobs, loading, reports, generatingId, adoptingId, audit, generateReport, adopt, reportList, suggestionText, reportColor, getStatusClass, getStatusText }
+    return { jobs, sortedJobs, sort, onSortChange, loading, reports, generatingId, adoptingId, audit, generateReport, adopt, sendBack, reportList, suggestionText, reportColor, getStatusClass, getStatusText }
   }
 }
 </script>
@@ -143,6 +162,9 @@ h2 { margin-bottom: 20px; color: #333; }
 .card { background-color: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #e8e8e8; margin-bottom: 16px; transition: all 0.3s ease; }
 .card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
 .card h3 { margin: 0 0 12px 0; color: #1890ff; font-size: 18px; }
+.info-grid { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-bottom: 8px; color: #666; }
+.info-item { display: inline-flex; align-items: center; white-space: nowrap; line-height: 1.6; }
+.info-remark { color: #666; line-height: 1.6; margin: 8px 0; }
 .card p { margin: 8px 0; color: #666; line-height: 1.6; }
 .status-tag { padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
 .status-pending { background: #fff7e6; color: #fa8c16; border: 1px solid #ffd591; }
@@ -151,6 +173,7 @@ h2 { margin-bottom: 20px; color: #333; }
 .status-rejected { background: #fff1f0; color: #ff4d4f; border: 1px solid #ffccc7; }
 .status-full { background: #f9f0ff; color: #722ed1; border: 1px solid #d3adf7; }
 .actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+.list-toolbar { margin-bottom: 14px; }
 .ai-report { margin-top: 14px; padding: 14px 16px; background: linear-gradient(135deg, #f6ffed, #fafafa); border: 1px solid #b7eb8f; border-radius: 8px; }
 .ai-report-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .ai-score { color: #52c41a; font-weight: 600; }

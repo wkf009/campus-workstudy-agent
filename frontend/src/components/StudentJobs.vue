@@ -6,6 +6,11 @@
       <a-select v-model:value="filterDept" placeholder="筛选部门" allowClear style="width:160px;margin-left:8px" @change="onSearch">
         <a-select-option v-for="dept in departments" :key="dept.id" :value="dept.id">{{ dept.name }}</a-select-option>
       </a-select>
+      <a-select v-model:value="sort" style="width:150px;margin-left:8px" @change="onSearch">
+        <a-select-option value="latest">最新发布</a-select-option>
+        <a-select-option value="salary_desc">薪资从高到低</a-select-option>
+        <a-select-option value="salary_asc">薪资从低到高</a-select-option>
+      </a-select>
     </div>
     <!-- AI 自然语言搜索（Agent：QueryAgent） -->
     <div class="ai-search-bar">
@@ -18,7 +23,7 @@
       />
     </div>
     <p v-if="aiSummary" class="ai-summary">💡 AI 理解你的需求：{{ aiSummary }}</p>
-    <p class="tip">排序：本部门岗位优先，薪资从高到低（服务端分页）</p>
+    <p class="tip">排序：最新发布优先（可在上方切换为按薪资排序，服务端分页）</p>
     <div v-if="loading" class="loading">加载中...</div>
     <div v-else-if="jobs.length === 0" class="card"><p>暂无岗位信息</p></div>
     <div v-else>
@@ -27,12 +32,14 @@
           <h3>{{ job.title }}</h3>
           <a-tag v-if="job.remark === '1'" color="blue">本部门推荐</a-tag>
         </div>
-        <p><strong>部门：</strong>{{ job.departmentName }}</p>
-        <p><strong>薪资：</strong>¥{{ job.salary }} /小时</p>
-        <p><strong>招聘名额：</strong>{{ job.quota }}</p>
-        <p><strong>工作地点：</strong>{{ job.location || '未设置' }}</p>
-        <p><strong>工作时间：</strong>{{ job.workTime || '未设置' }}</p>
-        <p><strong>联系人：</strong>{{ job.contactPerson || '未设置' }}</p>
+        <div class="info-grid">
+          <span class="info-item"><strong>部门：</strong>{{ job.departmentName }}</span>
+          <span class="info-item"><strong>薪资：</strong>¥{{ job.salary }} /小时</span>
+          <span class="info-item"><strong>招聘名额：</strong>{{ job.quota }}</span>
+          <span class="info-item"><strong>工作地点：</strong>{{ job.location || '未设置' }}</span>
+          <span class="info-item"><strong>工作时间：</strong>{{ job.workTime || '未设置' }}</span>
+          <span class="info-item"><strong>联系人：</strong>{{ job.contactPerson || '未设置' }}</span>
+        </div>
         <p><strong>岗位描述：</strong>{{ job.description }}</p>
         <p><strong>任职要求：</strong>{{ job.requirements || '无' }}</p>
         <div class="actions">
@@ -63,6 +70,7 @@ export default {
     const loading = ref(true)
     const keyword = ref('')
     const filterDept = ref(null)
+    const sort = ref('latest')
     const departments = ref([])
     const page = ref(1)
     const pageSize = ref(10)
@@ -93,7 +101,7 @@ export default {
     const fetchJobs = async () => {
       loading.value = true
       try {
-        const params = { page: page.value, pageSize: pageSize.value }
+        const params = { page: page.value, pageSize: pageSize.value, sort: sort.value }
         if (keyword.value && keyword.value.trim()) params.keyword = keyword.value.trim()
         if (filterDept.value) params.departmentId = filterDept.value
         const res = await request.get('/student/jobs', { params })
@@ -125,7 +133,7 @@ export default {
 
     onMounted(() => { fetchJobs(); fetchDepartments() })
 
-    return { jobs, loading, keyword, filterDept, departments, page, pageSize, total, aiQuery, aiSearching, aiSummary, aiSearch, onSearch, onPageChange, applyJob }
+    return { jobs, loading, keyword, filterDept, sort, departments, page, pageSize, total, aiQuery, aiSearching, aiSummary, aiSearch, onSearch, onPageChange, applyJob }
   }
 }
 </script>
@@ -141,6 +149,8 @@ export default {
 .card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .card h3 { margin-bottom: 0; color: #333; font-size: 18px; font-weight: 600; }
 .card p { margin: 8px 0; color: #666; line-height: 1.5; }
+.info-grid { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-bottom: 8px; color: #666; }
+.info-item { display: inline-flex; align-items: center; white-space: nowrap; line-height: 1.5; }
 .actions { margin-top: 16px; display: flex; gap: 8px; }
 .loading { text-align: center; padding: 60px 20px; color: #666; font-size: 16px; }
 </style>

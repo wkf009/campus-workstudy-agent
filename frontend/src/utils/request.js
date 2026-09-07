@@ -1,13 +1,18 @@
 import axios from 'axios'
 import { message } from 'ant-design-vue'
+import { aiStart, aiDone } from './aiProgress.js'
 
 const request = axios.create({
   baseURL: '/api',
   timeout: 15000
 })
 
+// 判定是否为 AI 操作（走 /agent/** 的接口），用于驱动顶部 AI 进度条
+const isAiRequest = (url = '') => /^\/?agent\//.test(url) || url.includes('/agent/')
+
 request.interceptors.request.use(
   config => {
+    if (isAiRequest(config.url)) aiStart()
     const token = sessionStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
@@ -19,6 +24,7 @@ request.interceptors.request.use(
 
 request.interceptors.response.use(
   response => {
+    if (isAiRequest(response.config.url)) aiDone()
     const data = response.data
     // 如果是文件下载等直接返回
     if (response.config.responseType === 'blob') {
@@ -40,6 +46,7 @@ request.interceptors.response.use(
     return data
   },
   error => {
+    if (isAiRequest(error.config?.url)) aiDone()
     if (error.response) {
       const status = error.response.status
       if (status === 401) {

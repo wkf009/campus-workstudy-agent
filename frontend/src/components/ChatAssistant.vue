@@ -25,6 +25,7 @@
 
 <script>
 import { ref, nextTick } from 'vue'
+import { aiStart, aiDone } from '../utils/aiProgress.js'
 
 export default {
   name: 'ChatAssistant',
@@ -55,6 +56,7 @@ export default {
       messages.value.push({ role: 'user', content: text })
       messages.value.push({ role: 'assistant', content: '' })
       thinking.value = true
+      aiStart()
       scrollToBottom()
 
       try {
@@ -103,6 +105,7 @@ export default {
         last.content = '网络错误或服务不可用，请确认后端已启动并配置通义千问 API Key'
       } finally {
         thinking.value = false
+        aiDone()
         scrollToBottom()
       }
     }

@@ -29,7 +29,8 @@ public class JobController {
     }
 
     /**
-     * 学生浏览岗位（分页）：支持关键词搜索与部门筛选，本部门优先 + 薪资降序。
+     * 学生浏览岗位（分页）：支持关键词搜索与部门筛选，以及排序选择。
+     * sort：latest（默认，最新在前）/ salary_desc / salary_asc。
      * remark="1" 表示本部门推荐岗位。
      */
     @GetMapping("/student/jobs")
@@ -38,13 +39,15 @@ public class JobController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int pageSize,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Long departmentId) {
+            @RequestParam(required = false) Long departmentId,
+            @RequestParam(defaultValue = "latest") String sort) {
         if (page < 1) page = 1;
         if (pageSize < 1 || pageSize > 100) pageSize = 10;
+        if (!"salary_asc".equals(sort) && !"salary_desc".equals(sort)) sort = "latest";
         Long currentUserId = JwtUtils.getUserIdFromRequest(request);
         User currentUser = userService.selectById(currentUserId);
         Long studentDepartmentId = currentUser != null ? currentUser.getDepartmentId() : null;
-        return Result.success(jobService.getPublishedJobsPage(studentDepartmentId, keyword, departmentId, page, pageSize));
+        return Result.success(jobService.getPublishedJobsPage(studentDepartmentId, keyword, departmentId, page, pageSize, sort));
     }
 
     @LogOperation

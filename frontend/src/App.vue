@@ -1,5 +1,6 @@
 <template>
   <div id="app">
+    <AiProgressBar />
     <router-view v-if="$route.name !== 'Home'">
       <template #default>
         <div class="container">
@@ -13,8 +14,10 @@
 </template>
 
 <script>
+import AiProgressBar from './components/AiProgressBar.vue'
 export default {
-  name: 'App'
+  name: 'App',
+  components: { AiProgressBar }
 }
 </script>
 

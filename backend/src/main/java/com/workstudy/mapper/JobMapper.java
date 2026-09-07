@@ -29,16 +29,23 @@ public interface JobMapper {
     List<Job> selectAllPublished();
 
     /**
-     * 招聘中岗位分页查询：支持关键词搜索（标题/描述）、部门筛选，
-     * 按"本部门优先 + 薪资降序 + 时间倒序"排序（SQL 层，配合 PageHelper 分页）。
+     * 招聘中岗位分页查询：支持关键词搜索（标题/描述）、部门筛选、排序选择。
+     * 排序（白名单防注入）：latest=最新在前；salary_desc=薪资从高到低；salary_asc=薪资从低到高。
+     * PageHelper 分页。
      */
-    @Select("SELECT * FROM job WHERE status = 1 " +
+    @Select("<script>SELECT * FROM job WHERE status = 1 " +
             "AND (#{keyword} IS NULL OR #{keyword} = '' OR title LIKE CONCAT('%', #{keyword}, '%') OR description LIKE CONCAT('%', #{keyword}, '%')) " +
             "AND (#{departmentId} IS NULL OR department_id = #{departmentId}) " +
-            "ORDER BY CASE WHEN department_id = #{deptId} THEN 0 ELSE 1 END, salary DESC, create_time DESC")
+            "<choose>" +
+            "  <when test=\"sort == 'salary_asc'\">ORDER BY salary ASC, create_time DESC</when>" +
+            "  <when test=\"sort == 'salary_desc'\">ORDER BY salary DESC, create_time DESC</when>" +
+            "  <otherwise>ORDER BY create_time DESC</otherwise>" +
+            "</choose>" +
+            "</script>")
     List<Job> selectPublishedOrdered(@Param("deptId") Long deptId,
                                      @Param("keyword") String keyword,
-                                     @Param("departmentId") Long departmentId);
+                                     @Param("departmentId") Long departmentId,
+                                     @Param("sort") String sort);
 
     /** AI 搜索（M5 QueryAgent）：关键词 + 地点过滤，Top 10 */
     @Select("SELECT * FROM job WHERE status = 1 " +

@@ -5,13 +5,22 @@
     <div v-if="loading" class="loading">加载中...</div>
     <div v-else-if="jobs.length === 0" class="card"><p>暂无岗位信息</p></div>
     <div v-else>
-      <div v-for="job in jobs" :key="job.id" class="card">
+      <div class="list-toolbar">
+        <a-select v-model:value="sort" style="width:150px" @change="onSortChange">
+          <a-select-option value="latest">最新发布</a-select-option>
+          <a-select-option value="salary_desc">薪资从高到低</a-select-option>
+          <a-select-option value="salary_asc">薪资从低到高</a-select-option>
+        </a-select>
+      </div>
+      <div v-for="job in sortedJobs" :key="job.id" class="card">
         <h3>{{ job.title }}</h3>
-        <p><strong>部门：</strong>{{ job.departmentName }}</p>
-        <p><strong>薪资：</strong>¥{{ job.salary }}</p>
-        <p><strong>招聘名额：</strong>{{ job.quota }}</p>
-        <p><strong>状态：</strong><span :class="['status-tag', getStatusClass(job.status)]">{{ getStatusText(job.status) }}</span></p>
-        <p v-if="job.remark"><strong>审批备注：</strong>{{ job.remark }}</p>
+        <div class="info-grid">
+          <span class="info-item"><strong>部门：</strong>{{ job.departmentName }}</span>
+          <span class="info-item"><strong>薪资：</strong>¥{{ job.salary }}</span>
+          <span class="info-item"><strong>招聘名额：</strong>{{ job.quota }}</span>
+          <span class="info-item"><strong>状态：</strong><span :class="['status-tag', getStatusClass(job.status)]">{{ getStatusText(job.status) }}</span></span>
+        </div>
+        <p v-if="job.remark" class="info-remark"><strong>审批备注：</strong>{{ job.remark }}</p>
 
         <!-- 被打回（状态5）：突出显示 + 修改重提交 -->
         <div v-if="job.status === 5" class="sendback-box">
@@ -35,15 +44,18 @@
         <a-form-item label="详细描述"><a-textarea v-model:value="reworkForm.description" :rows="3" /></a-form-item>
         <a-form-item label="任职要求"><a-textarea v-model:value="reworkForm.requirements" :rows="2" /></a-form-item>
         <a-form-item label="薪资（元/时）"><a-input v-model:value="reworkForm.salary" /></a-form-item>
+        <a-form-item label="招聘名额"><a-input-number v-model:value="reworkForm.quota" :min="1" style="width:100%" /></a-form-item>
         <a-form-item label="工作时间"><a-input v-model:value="reworkForm.workTime" /></a-form-item>
         <a-form-item label="工作地点"><a-input v-model:value="reworkForm.location" /></a-form-item>
+        <a-form-item label="联系人"><a-input v-model:value="reworkForm.contactPerson" /></a-form-item>
+        <a-form-item label="联系电话"><a-input v-model:value="reworkForm.contactPhone" /></a-form-item>
       </a-form>
     </a-modal>
   </div>
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import request, { downloadBlob } from '../utils/request.js'
 import { message } from 'ant-design-vue'
 
@@ -55,6 +67,16 @@ export default {
     const reworkVisible = ref(false)
     const reworkLoading = ref(false)
     const reworkForm = ref({})
+    const sort = ref('latest')
+
+    // 前端排序：latest=最新发布在前；salary_desc/salary_asc=按薪资
+    const sortedJobs = computed(() => {
+      const list = [...jobs.value]
+      if (sort.value === 'salary_asc') return list.sort((a, b) => (a.salary || 0) - (b.salary || 0))
+      if (sort.value === 'salary_desc') return list.sort((a, b) => (b.salary || 0) - (a.salary || 0))
+      return list.sort((a, b) => new Date(b.createTime) - new Date(a.createTime))
+    })
+    const onSortChange = () => { /* sortedJobs computed 自动重排 */ }
 
     const fetchJobs = async () => {
       try {
@@ -76,7 +98,8 @@ export default {
     const openRework = (job) => {
       reworkForm.value = {
         id: job.id, title: job.title, description: job.description, requirements: job.requirements,
-        salary: job.salary, workTime: job.workTime, location: job.location
+        salary: job.salary, quota: job.quota, workTime: job.workTime, location: job.location,
+        contactPerson: job.contactPerson, contactPhone: job.contactPhone
       }
       reworkVisible.value = true
     }
@@ -110,7 +133,7 @@ export default {
     }
 
     onMounted(() => { fetchJobs() })
-    return { jobs, loading, reworkVisible, reworkLoading, reworkForm, deleteJob, openRework, submitRework, exportCsv, getStatusClass, getStatusText }
+    return { jobs, sortedJobs, sort, onSortChange, loading, reworkVisible, reworkLoading, reworkForm, deleteJob, openRework, submitRework, exportCsv, getStatusClass, getStatusText }
   }
 }
 </script>
@@ -121,6 +144,9 @@ h2 { margin-bottom: 20px; color: #333; }
 .card { background-color: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #e8e8e8; margin-bottom: 16px; transition: all 0.3s ease; }
 .card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
 .card h3 { margin: 0 0 12px 0; color: #1890ff; font-size: 18px; }
+.info-grid { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-bottom: 8px; color: #666; }
+.info-item { display: inline-flex; align-items: center; white-space: nowrap; line-height: 1.6; }
+.info-remark { color: #666; line-height: 1.6; margin: 8px 0; }
 .card p { margin: 8px 0; color: #666; line-height: 1.6; }
 .status-tag { padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
 .status-pending { background: #fff7e6; color: #fa8c16; border: 1px solid #ffd591; }
@@ -132,5 +158,6 @@ h2 { margin-bottom: 20px; color: #333; }
 .sendback-box { margin-top: 10px; padding: 10px 14px; background: #fff7e6; border: 1px solid #ffd591; border-radius: 6px; }
 .sendback-reason { color: #d46b08; margin: 6px 0 !important; }
 .actions { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e8e8e8; }
+.list-toolbar { margin-bottom: 14px; }
 .loading { text-align: center; padding: 40px; color: #999; font-size: 16px; }
 </style>

@@ -50,13 +50,14 @@ public class JobService {
 
     /**
      * 学生浏览岗位（分页）：SQL 层完成搜索/筛选/排序，PageHelper 分页。
+     * sort：latest（默认最新在前）/ salary_desc / salary_asc。
      * 返回 PageResult{records,total,page,pageSize}，records 中 remark="1" 表示本部门推荐。
      */
-    public PageResult<Job> getPublishedJobsPage(Long studentDepartmentId, String keyword, Long departmentId, int page, int pageSize) {
+    public PageResult<Job> getPublishedJobsPage(Long studentDepartmentId, String keyword, Long departmentId, int page, int pageSize, String sort) {
         PageHelper.startPage(page, pageSize);
         List<Job> jobs;
         try {
-            jobs = jobMapper.selectPublishedOrdered(studentDepartmentId, keyword, departmentId);
+            jobs = jobMapper.selectPublishedOrdered(studentDepartmentId, keyword, departmentId, sort);
         } finally {
             PageHelper.clearPage(); // 防御性清理 ThreadLocal，避免残留影响其他查询
         }
@@ -148,8 +149,11 @@ public class JobService {
         job.setDescription(input.getDescription());
         job.setRequirements(input.getRequirements());
         if (input.getSalary() != null) job.setSalary(input.getSalary());
+        if (input.getQuota() != null) job.setQuota(input.getQuota());
         if (input.getLocation() != null) job.setLocation(input.getLocation());
         if (input.getWorkTime() != null) job.setWorkTime(input.getWorkTime());
+        if (input.getContactPerson() != null) job.setContactPerson(input.getContactPerson());
+        if (input.getContactPhone() != null) job.setContactPhone(input.getContactPhone());
         job.setStatus(0);
         job.setRemark(null);
         jobMapper.update(job);
