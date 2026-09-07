@@ -34,19 +34,31 @@ function Write-Step($msg) { Write-Host "`n=== $msg ===" -ForegroundColor Cyan }
 # ============ 停止模式 ============
 if ($Stop) {
     Write-Step "停止服务"
+    # 方式 1：端口反查进程（最可靠，不依赖 PID 记录）
+    foreach ($stopPort in @(8080, 3000)) {
+        try {
+            $conns = Get-NetTCPConnection -LocalPort $stopPort -State Listen -ErrorAction SilentlyContinue
+            foreach ($c in $conns) {
+                Write-Host "  停止监听端口 $stopPort 的进程 PID $($c.OwningProcess) ..."
+                taskkill /PID $c.OwningProcess /T /F 2>$null | Out-Null
+            }
+        } catch { }
+    }
+    # 方式 2：PID 记录（方式 1 未覆盖时兜底）
     if (Test-Path $pidFile) {
         $pids = Get-Content $pidFile | ConvertFrom-Json
         foreach ($procId in @($pids.backend, $pids.frontend)) {
             if ($procId) {
-                Write-Host "  停止 PID $procId ..."
-                taskkill /PID $procId /T /F 2>$null | Out-Null
+                $alive = Get-Process -Id $procId -ErrorAction SilentlyContinue
+                if ($alive) {
+                    Write-Host "  停止记录中的 PID $procId ..."
+                    taskkill /PID $procId /T /F 2>$null | Out-Null
+                }
             }
         }
         Remove-Item $pidFile -Force
-    } else {
-        Write-Host "  未找到 PID 记录（服务可能未由本脚本启动）" -ForegroundColor Yellow
     }
-    Write-Host "  已停止。残留进程可用 taskkill /IM java.exe 检查。" -ForegroundColor DarkGray
+    Write-Host "  已停止。" -ForegroundColor DarkGray
     exit 0
 }
 
@@ -82,54 +94,107 @@ if (-not $env:DASHSCOPE_API_KEY) {
 
 # ============ 3. 启动后端 ============
 Write-Step "3/5 启动后端 (http://localhost:8080)"
-if (Test-Path $backLog) { Remove-Item $backLog -Force }
-$backendProc = Start-Process -FilePath "mvn.cmd" `
-    -ArgumentList "spring-boot:run" `
-    -WorkingDirectory $backend `
-    -RedirectStandardOutput $backLog `
-    -RedirectStandardError (Join-Path $runtime 'backend-err.log') `
-    -WindowStyle Hidden -PassThru
-
-$backReady = $false
-for ($i = 0; $i -lt 40; $i++) {
-    Start-Sleep -Seconds 3
-    if ($backendProc.HasExited) { break }
+$backendProc = $null
+$backIsRunning = $false
+$port8080 = Test-NetConnection -ComputerName localhost -Port 8080 -WarningAction SilentlyContinue
+if ($port8080.TcpTestSucceeded) {
+    Write-Host "  8080 已被占用——后端可能已在运行，跳过启动。" -ForegroundColor Yellow
+    $backIsRunning = $true
+} else {
+    # 清理旧日志；若被残留进程占用则改用带时间戳的日志名（不阻断启动）
     try {
-        $h = Invoke-RestMethod -Uri 'http://localhost:8080/actuator/health' -TimeoutSec 3
-        if ($h.status -eq 'UP') { $backReady = $true; break }
-    } catch { }
+        if (Test-Path $backLog) { Remove-Item $backLog -Force -ErrorAction Stop }
+    } catch {
+        $stamp = Get-Date -Format 'MMdd-HHmmss'
+        $backLog = Join-Path $runtime "backend-$stamp.log"
+        Write-Host "  旧日志被占用，使用新日志：$(Split-Path $backLog -Leaf)" -ForegroundColor DarkGray
+    }
+    $backendProc = Start-Process -FilePath "mvn.cmd" `
+        -ArgumentList "spring-boot:run" `
+        -WorkingDirectory $backend `
+        -RedirectStandardOutput $backLog `
+        -RedirectStandardError (Join-Path $runtime 'backend-err.log') `
+        -WindowStyle Hidden -PassThru
 }
-if (-not $backReady) {
-    Write-Host "[!] 后端启动超时或失败，请查看日志：$backLog" -ForegroundColor Red
-    exit 1
+
+if ($backIsRunning) {
+    # 已运行：只确认健康
+    $backReady = $false
+    for ($i = 0; $i -lt 20; $i++) {
+        Start-Sleep -Seconds 2
+        try {
+            $h = Invoke-RestMethod -Uri 'http://localhost:8080/actuator/health' -TimeoutSec 3
+            if ($h.status -eq 'UP') { $backReady = $true; break }
+        } catch { }
+    }
+    if ($backReady) { Write-Host "  后端已在运行且健康（复用现有实例）" } else { Write-Host "  8080 被占用但健康检查未通过，请检查端口占用进程" -ForegroundColor Yellow }
+} else {
+    $backReady = $false
+    for ($i = 0; $i -lt 40; $i++) {
+        Start-Sleep -Seconds 3
+        if ($backendProc.HasExited) { break }
+        try {
+            $h = Invoke-RestMethod -Uri 'http://localhost:8080/actuator/health' -TimeoutSec 3
+            if ($h.status -eq 'UP') { $backReady = $true; break }
+        } catch { }
+    }
+    if (-not $backReady) {
+        Write-Host "[!] 后端启动超时或失败，请查看日志：$backLog" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  后端已就绪（PID $($backendProc.Id)）"
 }
-Write-Host "  后端已就绪（PID $($backendProc.Id)）"
 
 # ============ 4. 启动前端 ============
 Write-Step "4/5 启动前端 (http://localhost:3000)"
-if (Test-Path $frontLog) { Remove-Item $frontLog -Force }
-$frontendProc = Start-Process -FilePath "npm.cmd" `
-    -ArgumentList "run", "dev" `
-    -WorkingDirectory $frontend `
-    -RedirectStandardOutput $frontLog `
-    -RedirectStandardError (Join-Path $runtime 'frontend-err.log') `
-    -WindowStyle Hidden -PassThru
-
-$frontReady = $false
-for ($i = 0; $i -lt 30; $i++) {
-    Start-Sleep -Seconds 2
-    if ($frontendProc.HasExited) { break }
-    $t = Test-NetConnection -ComputerName localhost -Port 3000 -WarningAction SilentlyContinue
-    if ($t.TcpTestSucceeded) { $frontReady = $true; break }
-}
-if (-not $frontReady) {
-    Write-Host "[!] 前端启动超时，请查看日志：$frontLog" -ForegroundColor Yellow
+$frontendProc = $null
+$frontIsRunning = $false
+$port3000 = Test-NetConnection -ComputerName localhost -Port 3000 -WarningAction SilentlyContinue
+if ($port3000.TcpTestSucceeded) {
+    Write-Host "  3000 已被占用——前端可能已在运行，跳过启动。" -ForegroundColor Yellow
+    $frontIsRunning = $true
 } else {
-    Write-Host "  前端已就绪（PID $($frontendProc.Id)）"
+    try {
+        if (Test-Path $frontLog) { Remove-Item $frontLog -Force -ErrorAction Stop }
+    } catch {
+        $stamp = Get-Date -Format 'MMdd-HHmmss'
+        $frontLog = Join-Path $runtime "frontend-$stamp.log"
+        Write-Host "  旧日志被占用，使用新日志：$(Split-Path $frontLog -Leaf)" -ForegroundColor DarkGray
+    }
+    $frontendProc = Start-Process -FilePath "npm.cmd" `
+        -ArgumentList "run", "dev" `
+        -WorkingDirectory $frontend `
+        -RedirectStandardOutput $frontLog `
+        -RedirectStandardError (Join-Path $runtime 'frontend-err.log') `
+        -WindowStyle Hidden -PassThru
 }
 
-# 记录 PID
-@{ backend = $backendProc.Id; frontend = $frontendProc.Id } | ConvertTo-Json | Set-Content $pidFile
+if ($frontIsRunning) {
+    Write-Host "  前端已在运行（复用现有实例）"
+} else {
+    $frontReady = $false
+    for ($i = 0; $i -lt 30; $i++) {
+        Start-Sleep -Seconds 2
+        if ($frontendProc.HasExited) { break }
+        $t = Test-NetConnection -ComputerName localhost -Port 3000 -WarningAction SilentlyContinue
+        if ($t.TcpTestSucceeded) { $frontReady = $true; break }
+    }
+    if (-not $frontReady) {
+        Write-Host "[!] 前端启动超时，请查看日志：$frontLog" -ForegroundColor Yellow
+    } else {
+        Write-Host "  前端已就绪（PID $($frontendProc.Id)）"
+    }
+}
+
+# 记录 PID（合并：本次新启动的记录新 PID；已运行复用的保留原记录，避免 stop 丢失）
+$existing = @{ }
+if (Test-Path $pidFile) {
+    try { $existing = Get-Content $pidFile | ConvertFrom-Json } catch { }
+}
+$pidsToRecord = @{ }
+$pidsToRecord.backend  = if ($backendProc)  { $backendProc.Id }  elseif ($existing.backend)  { $existing.backend }  else { 0 }
+$pidsToRecord.frontend = if ($frontendProc) { $frontendProc.Id } elseif ($existing.frontend) { $existing.frontend } else { 0 }
+$pidsToRecord | ConvertTo-Json | Set-Content $pidFile
 
 # ============ 5. 三角色登录 ============
 Write-Step "5/5 三角色登录（密码：$Password）"
