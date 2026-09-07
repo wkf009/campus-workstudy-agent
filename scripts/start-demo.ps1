@@ -76,9 +76,10 @@ Write-Host "  MySQL OK"
 Write-Step "2/5 检查通义千问 API Key"
 $envFile = Join-Path $PSScriptRoot '.env'
 if (-not $env:DASHSCOPE_API_KEY -and (Test-Path $envFile)) {
-    foreach ($line in Get-Content $envFile) {
-        if ($line -match '^\s*DASHSCOPE_API_KEY\s*=\s*(.+)\s*$') {
-            $env:DASHSCOPE_API_KEY = $Matches[1]
+    foreach ($line in [System.IO.File]::ReadAllLines($envFile)) {
+        $trimmed = $line.Trim()
+        if ($trimmed -match '^DASHSCOPE_API_KEY=(.+)$') {
+            $env:DASHSCOPE_API_KEY = $Matches[1].Trim()
             break
         }
     }
@@ -219,6 +220,27 @@ foreach ($u in @('admin', 'dept1', 'student1')) {
 $tokens | ConvertTo-Json | Set-Content $tokenFile
 Write-Host "  Token 已保存：$tokenFile"
 
+# ============ 6. 打开三个角色页面（已登录，浏览器自动跳转） ============
+if ($tokens.Count -gt 0 -and -not $env:DISABLE_AUTO_OPEN) {
+    Write-Step "6 打开三个角色页面（浏览器自动登录）"
+    $frontUrl = 'http://localhost:3000'
+    $pw = [uri]::EscapeDataString($Password)
+    $openTargets = @(
+        @{ u = 'admin';    p = "admin" },
+        @{ u = 'dept1';    p = "dept1" },
+        @{ u = 'student1'; p = "student1" }
+    )
+    foreach ($t in $openTargets) {
+        $url = "$frontUrl/auto-login.html?username=$($t.u)&password=$pw"
+        Write-Host "  打开 $($t.u) 页面 ..."
+        Start-Process $url
+        Start-Sleep -Milliseconds 900
+    }
+    Write-Host "  已在浏览器打开 3 个标签页：管理员 / 部门管理员 / 学生（各自已登录）" -ForegroundColor Green
+} elseif (-not $env:DISABLE_AUTO_OPEN) {
+    Write-Host "[!] 登录未全部成功，跳过自动打开浏览器（可手动访问 $frontUrl/auto-login.html?username=xxx&password=xxx）" -ForegroundColor Yellow
+}
+
 # ============ 完成 ============
 Write-Host "`n============================================================" -ForegroundColor Cyan
 Write-Host "  启动完成！" -ForegroundColor Green
@@ -229,5 +251,5 @@ Write-Host "  Token： $tokenFile"
 Write-Host "  日志：  $backLog / $frontLog"
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  AI 功能需要 DASHSCOPE_API_KEY（见上方第 2 步提示）。" -ForegroundColor DarkGray
+Write-Host "  AI 功能需要 DASHSCOPE_API_KEY（可在 scripts\.env 配置）。" -ForegroundColor DarkGray
 Write-Host "  停止：powershell -File scripts\start-demo.ps1 -Stop" -ForegroundColor DarkGray

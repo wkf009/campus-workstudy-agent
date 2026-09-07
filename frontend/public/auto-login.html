@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>自动登录跳转</title>
+</head>
+<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f5f7fa">
+  <div id="box" style="background:#fff;padding:32px 40px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.08);color:#333;font-size:14px">
+    <div id="msg">正在登录并跳转...</div>
+  </div>
+  <script>
+    // 演示辅助页：?username=xx&password=xx → 调登录接口 → 写入 localStorage → 按角色跳首页
+    (function () {
+      var q = new URLSearchParams(location.search);
+      var username = q.get('username');
+      var password = q.get('password');
+      var msg = document.getElementById('msg');
+      if (!username || !password) {
+        msg.textContent = '缺少 username/password 参数';
+        return;
+      }
+      fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: password })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.code === 200 && d.data && d.data.token) {
+            localStorage.setItem('user', JSON.stringify(d.data.user));
+            localStorage.setItem('token', d.data.token);
+            var role = d.data.user.role;
+            var target = (role === 3) ? '/admin/dashboard'
+              : ((role === 0) ? '/student/dashboard' : '/department/dashboard');
+            msg.textContent = '登录成功（' + username + '），跳转 ' + target + ' ...';
+            location.href = target;
+          } else {
+            msg.textContent = '登录失败: ' + (d.message || '未知错误');
+          }
+        })
+        .catch(function (e) { msg.textContent = '登录失败(网络): ' + e.message; });
+    })();
+  </script>
+</body>
+</html>
