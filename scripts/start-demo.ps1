@@ -60,14 +60,24 @@ if (-not $mysqlOk.TcpTestSucceeded) {
 }
 Write-Host "  MySQL OK"
 
-# ============ 2. API Key ============
+# ============ 2. API Key（支持 .env 文件） ============
 Write-Step "2/5 检查通义千问 API Key"
+$envFile = Join-Path $PSScriptRoot '.env'
+if (-not $env:DASHSCOPE_API_KEY -and (Test-Path $envFile)) {
+    foreach ($line in Get-Content $envFile) {
+        if ($line -match '^\s*DASHSCOPE_API_KEY\s*=\s*(.+)\s*$') {
+            $env:DASHSCOPE_API_KEY = $Matches[1]
+            break
+        }
+    }
+}
 if (-not $env:DASHSCOPE_API_KEY) {
-    Write-Host "[!] 未检测到 DASHSCOPE_API_KEY 环境变量，AI 功能（推荐/对话/审核）将不可用。" -ForegroundColor Yellow
-    Write-Host "    可先执行：  `$env:DASHSCOPE_API_KEY = 'sk-你的key'" -ForegroundColor Yellow
-    Write-Host "    或直接在本脚本同目录放置 .env 后设置环境变量。" -ForegroundColor Yellow
+    Write-Host "[!] 未检测到 DASHSCOPE_API_KEY，将以【无 AI 演示模式】启动：" -ForegroundColor Yellow
+    Write-Host "    - 系统核心功能（登录/岗位/申请/审核/通知/统计）全部可用" -ForegroundColor Yellow
+    Write-Host "    - AI 能力（推荐/对话/预审/撮合等）会提示不可用（后端已内置降级）" -ForegroundColor Yellow
+    Write-Host "    启用 AI：将 key 写入 scripts\.env（DASHSCOPE_API_KEY=sk-xxx）或设置环境变量后重启。" -ForegroundColor Yellow
 } else {
-    Write-Host "  API Key 已配置（长度 $($env:DASHSCOPE_API_KEY.Length)）"
+    Write-Host "  API Key 已配置（长度 $($env:DASHSCOPE_API_KEY.Length)），AI 功能可用"
 }
 
 # ============ 3. 启动后端 ============
