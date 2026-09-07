@@ -45,7 +45,7 @@ export default {
       if (!aiKeywords.value.trim()) { message.warning('请输入岗位要点'); return }
       aiLoading.value = true
       try {
-        const res = await request.post('/agent/write-job', { keywords: aiKeywords.value })
+        const res = await request.post('/agent/write-job', { keywords: aiKeywords.value }, { timeout: 90000 })
         const d = res.data || {}
         formState.value.title = d.title || formState.value.title
         formState.value.description = d.description || formState.value.description
@@ -53,7 +53,7 @@ export default {
         formState.value.workTime = d.workTime || formState.value.workTime
         if (d.salarySuggest) formState.value.salary = String(d.salarySuggest)
         message.success('AI 已生成岗位初稿，请核对后提交')
-      } catch (e) { message.error('AI 生成失败，请确认已配置通义千问 API Key') }
+      } catch (e) { message.error('AI 生成超时或服务暂不可用，请稍后重试') }
       finally { aiLoading.value = false }
     }
 

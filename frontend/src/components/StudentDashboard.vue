@@ -95,20 +95,21 @@ export default {
       recLoading.value = true
       recError.value = ''
       try {
-        const res = await request.get('/agent/recommendations', { params: { topN: 3 } })
+        // 首次会触发画像构建+向量索引，耗时长，用长超时
+        const res = await request.get('/agent/recommendations', { params: { topN: 3 }, timeout: 90000 })
         recommendations.value = res.data || []
       } catch (e) {
-        recError.value = '推荐服务暂不可用（请确认已配置通义千问 API Key）'
+        recError.value = 'AI 推荐超时或服务暂不可用，请稍后重试'
       } finally { recLoading.value = false }
     }
 
     const rebuildProfile = async () => {
       profileLoading.value = true
       try {
-        const res = await request.post('/agent/profile/rebuild')
+        const res = await request.post('/agent/profile/rebuild', null, { timeout: 90000 })
         message.success('画像重建完成，正在重新推荐...')
         fetchRecommendations()
-      } catch (e) { message.error('画像重建失败，请稍后重试') }
+      } catch (e) { message.error('画像重建超时或服务暂不可用，请稍后重试') }
       finally { profileLoading.value = false }
     }
 

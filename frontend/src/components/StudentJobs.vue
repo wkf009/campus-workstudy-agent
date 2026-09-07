@@ -78,14 +78,14 @@ export default {
       aiSearching.value = true
       aiSummary.value = ''
       try {
-        const res = await request.post('/agent/search', { query: aiQuery.value })
+        const res = await request.post('/agent/search', { query: aiQuery.value }, { timeout: 90000 })
         const d = res.data || {}
         aiSummary.value = d.summary || ''
         jobs.value = d.jobs || []
         total.value = jobs.value.length
         page.value = 1
         message.success('AI 已为你找到 ' + jobs.value.length + ' 个岗位')
-      } catch (e) { message.error('AI 搜索失败，请确认已配置通义千问 API Key') }
+      } catch (e) { message.error('AI 搜索超时或服务暂不可用，请稍后重试') }
       finally { aiSearching.value = false }
     }
 

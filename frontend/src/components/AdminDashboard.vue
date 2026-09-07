@@ -91,9 +91,9 @@ export default {
     const runAnalysis = async () => {
       analyzing.value = true
       try {
-        const res = await request.post('/agent/analyze')
+        const res = await request.post('/agent/analyze', null, { timeout: 90000 })
         analysis.value = res.data || {}
-      } catch (e) { message.error('AI 分析失败，请确认已配置通义千问 API Key') }
+      } catch (e) { message.error('AI 分析超时或服务暂不可用，请稍后重试') }
       finally { analyzing.value = false }
     }
 

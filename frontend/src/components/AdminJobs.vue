@@ -70,10 +70,11 @@ export default {
     const generateReport = async (jobId) => {
       generatingId.value = jobId
       try {
-        const res = await request.post(`/agent/audit/job/${jobId}/generate`)
+        // AI 预审含 LLM 调用，用长超时（默认 15s 不够）
+        const res = await request.post(`/agent/audit/job/${jobId}/generate`, null, { timeout: 90000 })
         reports.value = { ...reports.value, [jobId]: res.data }
         message.success('AI 预审报告已生成')
-      } catch (e) { message.error('预审失败，请确认已配置通义千问 API Key') }
+      } catch (e) { message.error('AI 预审超时或服务暂不可用，请稍后重试（可查看后端日志）') }
       finally { generatingId.value = null }
     }
 
